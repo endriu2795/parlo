@@ -28,11 +28,14 @@ Optional online services have their own accounts, terms, and pricing.
 
 ## Install
 
-Download the installer for your platform when available. [Official releases](https://github.com/endriu2795/parlo/releases)
+- **Windows x64.** Download the `.exe` installer. It currently has no
+  Authenticode signature. Windows may warn or block it depending on your
+  security settings. [Official releases](https://github.com/endriu2795/parlo/releases)
+- **macOS 13+.** For now, build from source on Apple Silicon or Intel.
+  [Build instructions](#build-your-own-installer)
 
-Build targets are Windows x64 and macOS 13+
-(Apple Silicon or Intel). The first local transcription requires a model
-download. Speech language detection is automatic by default.
+The first local transcription requires a model download. Speech language
+detection is automatic by default.
 
 ## Turn a call into slides in your style
 

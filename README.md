@@ -26,16 +26,19 @@ o data.
 
 ## Installare e iniziare
 
-1. Scarica l’installer per il tuo sistema quando disponibile. [Releases ufficiali](https://github.com/endriu2795/parlo/releases)
-2. Scegli le sorgenti audio e avvia una registrazione. Per trascrivere sul
-   computer prepara il modello locale; in alternativa configura Groq.
-3. Per usare la chat scegli l'assistente nelle impostazioni e configura
-   il tuo account oppure Ollama.
+- **Windows x64.** Scarica il file `.exe`. Per ora l’installer è privo di
+  firma Authenticode. Windows può mostrare un avviso o bloccarlo in base alle
+  impostazioni di sicurezza. [Releases ufficiali](https://github.com/endriu2795/parlo/releases)
+- **macOS 13+.** Per ora puoi compilare l’app dai sorgenti su Apple Silicon o
+  Intel. [Istruzioni per macOS](SVILUPPO.md#mac-apple-silicon-o-intel)
+
+Scegli le sorgenti audio e avvia una registrazione. Prepara il modello locale
+per trascrivere sul computer oppure configura Groq. Per usare la chat, scegli
+l’assistente nelle impostazioni.
 
 Gli installer includono Python e gli strumenti per documenti e media.
 I servizi esterni opzionali possono prevedere costi e quote propri.
 
-Il codice si può compilare per **Windows x64 e macOS 13+** su Apple Silicon e Intel.
 Per il collaudo e i limiti su Mac, vedi [lo stato della build macOS](MACOS.md).
 
 ## Guide
