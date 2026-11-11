@@ -1,0 +1,8 @@
+{
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "resources": { "macos/it.lproj/InfoPlist.strings": "it.lproj/InfoPlist.strings" },
+    "macOS": { "minimumSystemVersion": "13.0", "entitlements": "Entitlements.plist", "infoPlist": "Info.plist" }
+  }
+}

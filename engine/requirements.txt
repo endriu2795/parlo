@@ -1,0 +1,5 @@
+faster-whisper==1.2.1
+numpy==2.2.6
+av==16.0.1
+psutil==7.2.2
+openvino-genai==2026.4.1.0; sys_platform != 'darwin' and platform_machine == 'AMD64'

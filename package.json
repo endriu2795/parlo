@@ -1,0 +1,36 @@
+{
+  "name": "callnotes",
+  "version": "0.3.14",
+  "private": true,
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "desktop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1",
+    "desktop:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1",
+    "desktop:installer": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Installer",
+    "tauri": "tauri",
+    "test:ui": "node scripts/ui-check.cjs",
+    "test:annotations": "node --test scripts/test-annotations.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.10.0",
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.296",
+    "@tauri-apps/cli": "^2.12.2",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "playwright": "^1.64.0",
+    "prettier": "^3.9.10",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0"
+  }
+}

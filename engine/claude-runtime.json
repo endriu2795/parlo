@@ -1,0 +1,9 @@
+{
+  "version": "2.1.296",
+  "base_url": "https://downloads.claude.ai/claude-code-releases",
+  "platforms": {
+    "win32-x64": { "binary": "claude.exe", "size": 260489376, "sha256": "76de74f7694a5bdc03378a5f837c9e132827bf004c98c276bc4e9094ff06769a" },
+    "darwin-arm64": { "binary": "claude", "size": 240664432, "sha256": "c9b5341637becbd423ddffc5b254afb645682a3868cb708bbc6cc0e7bb419937" },
+    "darwin-x64": { "binary": "claude", "size": 249194752, "sha256": "a6bf4f30be241053a923f3820ad23c5991d2f5ac2935b3a8dd64da218d9cc603" }
+  }
+}

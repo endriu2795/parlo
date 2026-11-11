@@ -1,0 +1,199 @@
+/* Floating recording indicator and note composer window. */
+
+body:has(.recorder) {
+  background: var(--panel);
+}
+.recorder {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  color: var(--text);
+}
+.recorder-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 44px;
+  padding: 6px 8px 6px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.recorder-drag {
+  display: flex;
+  flex: 1;
+  align-self: stretch;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  cursor: grab;
+  user-select: none;
+}
+.record-dot {
+  color: var(--recording);
+}
+.recorder-drag strong {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recorder-drag .mono {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.recorder .dock-button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+}
+.recorder .dock-button:hover {
+  background: var(--raised);
+  color: var(--text);
+}
+.recorder .icon-button {
+  width: 28px;
+  height: 28px;
+}
+.recorder-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 16px;
+}
+.recorder-body > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: var(--text-xs);
+}
+.recorder-body > span > svg {
+  color: var(--accent);
+}
+.recorder-body meter {
+  width: 46px;
+  height: 10px;
+}
+.recorder-body small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.recorder .capture-actions {
+  flex-shrink: 0;
+  margin: 0 0 6px;
+  padding: 0 10px;
+  gap: 2px;
+}
+.recorder .capture-actions .text-button {
+  font-size: var(--text-xs);
+}
+.recorder-footer {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px 7px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--canvas);
+}
+.recorder-footer > span {
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recorder-footer button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--recording);
+  color: var(--recording-contrast);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.recorder-footer button:hover:enabled {
+  filter: brightness(1.08);
+}
+.recorder.compact .recorder-header {
+  height: 100%;
+  border: 0;
+}
+
+/* Note composer window */
+.note-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  padding: 16px;
+  background: var(--canvas);
+  color: var(--text);
+}
+.note-composer header,
+.note-composer header strong,
+.note-composer footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.note-composer header strong {
+  font-size: var(--text-md);
+}
+.note-composer header strong svg {
+  color: var(--accent);
+}
+.note-composer time {
+  color: var(--muted);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.note-composer textarea {
+  flex: 1;
+  width: 100%;
+  min-height: 60px;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--canvas);
+  color: var(--text);
+  font-size: var(--text-md);
+  line-height: 1.6;
+  resize: none;
+}
+.note-composer textarea:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 0;
+}
+.note-composer footer small {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.note-composer p {
+  margin: 0;
+  color: var(--warning);
+  font-size: var(--text-xs);
+}

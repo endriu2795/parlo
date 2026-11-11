@@ -1,0 +1,10 @@
+{
+  "identifier": "main-window-controls",
+  "description": "Controlli della barra del titolo della finestra principale",
+  "windows": ["main"],
+  "permissions": [
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close"
+  ]
+}

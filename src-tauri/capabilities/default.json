@@ -1,0 +1,17 @@
+{
+  "identifier": "desktop",
+  "description": "Finestre locali dell’app",
+  "windows": [
+    "main",
+    "recorder",
+    "drawing",
+    "note",
+    "video-area",
+    "screenshot-area"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-hide",
+    "core:window:allow-start-dragging"
+  ]
+}

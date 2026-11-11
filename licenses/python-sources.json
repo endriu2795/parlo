@@ -1,0 +1,112 @@
+{
+  "python_packages": [
+    {
+      "source_distributions": [
+        {
+          "filename": "piper_tts-1.8.0.tar.gz",
+          "url": "https://files.pythonhosted.org/packages/02/cc/95b18b58d9c235d8e0bcece7321b7a7347873c14f9fea2c734b31ef04ff2/piper_tts-1.8.0.tar.gz",
+          "sha256": "830588aded347df579c91a32703e0fc2a3685d84f1e3533b14f2de69135d4904"
+        }
+      ],
+      "name": "piper-tts",
+      "project_urls": {
+        "Homepage": "http://github.com/OHF-voice/piper1-gpl"
+      },
+      "version": "1.8.0",
+      "metadata": "https://pypi.org/pypi/piper-tts/1.8.0/json"
+    },
+    {
+      "source_distributions": [
+        {
+          "filename": "phonemizer-3.4.0.tar.gz",
+          "url": "https://files.pythonhosted.org/packages/bc/7d/5a96ddb130552f6365a090b5fd12ace803a95a858e3f67258f2ad13dc51f/phonemizer-3.4.0.tar.gz",
+          "sha256": "e13231980c50bc671ec0466379ba027260ad9d61929952d8ae9665b3d0f251eb"
+        }
+      ],
+      "name": "phonemizer",
+      "project_urls": {
+        "Changelog": "https://github.com/bootphon/phonemizer/blob/master/docs/source/changelog.rst",
+        "Documentation": "https://bootphon.github.io/phonemizer/",
+        "Issues": "https://github.com/bootphon/phonemizer",
+        "Repository": "https://github.com/bootphon/phonemizer"
+      },
+      "version": "3.4.0",
+      "metadata": "https://pypi.org/pypi/phonemizer/3.4.0/json"
+    },
+    {
+      "source_distributions": [
+        {
+          "filename": "kokoro_onnx-0.6.1.tar.gz",
+          "url": "https://files.pythonhosted.org/packages/6b/ef/b58dedba0a1417f16352352787fbcfcbaa0b907e284c2ea3ebaf5541109a/kokoro_onnx-0.6.1.tar.gz",
+          "sha256": "7bbdb66dd53775f71088a99999a9aefdad240740daf54cb09410d8bb1e294e35"
+        }
+      ],
+      "name": "kokoro-onnx",
+      "project_urls": {
+        "Homepage": "https://github.com/thewh1teagle/kokoro-onnx",
+        "Issues": "https://github.com/thewh1teagle/kokoro-onnx/issues",
+        "Repository": "https://github.com/thewh1teagle/kokoro-onnx"
+      },
+      "version": "0.6.1",
+      "metadata": "https://pypi.org/pypi/kokoro-onnx/0.6.1/json"
+    },
+    {
+      "source_distributions": [],
+      "name": "espeakng-loader",
+      "project_urls": null,
+      "version": "0.2.4",
+      "metadata": "https://pypi.org/pypi/espeakng-loader/0.2.4/json"
+    },
+    {
+      "source_distributions": [
+        {
+          "filename": "imageio_ffmpeg-0.6.0.tar.gz",
+          "url": "https://files.pythonhosted.org/packages/44/bd/c3343c721f2a1b0c9fc71c1aebf1966a3b7f08c2eea8ed5437a2865611d6/imageio_ffmpeg-0.6.0.tar.gz",
+          "sha256": "e2556bed8e005564a9f925bb7afa4002d82770d6b08825078b7697ab88ba1755"
+        }
+      ],
+      "name": "imageio-ffmpeg",
+      "project_urls": {
+        "Download": "http://pypi.python.org/pypi/imageio-ffmpeg",
+        "Homepage": "https://github.com/imageio/imageio-ffmpeg"
+      },
+      "version": "0.6.0",
+      "metadata": "https://pypi.org/pypi/imageio-ffmpeg/0.6.0/json"
+    }
+  ],
+  "licenses": [
+    {
+      "file": "licenses/kokoro-onnx.txt",
+      "upstream": "https://raw.githubusercontent.com/thewh1teagle/kokoro-onnx/main/LICENSE",
+      "sha256": "f61fdd0217de9ece8fa699912848d91187d84879fc2e689f0906d0c1299e955e"
+    },
+    {
+      "file": "licenses/espeakng-loader.txt",
+      "upstream": "https://raw.githubusercontent.com/thewh1teagle/espeakng-loader/main/LICENSE",
+      "sha256": "b05c73bb1335b4320ec97edff106b3991c12d0acdc6e899c96f061a15039119f"
+    },
+    {
+      "file": "licenses/whisper-cpp.txt",
+      "upstream": "https://raw.githubusercontent.com/ggml-org/whisper.cpp/v1.8.3/LICENSE",
+      "sha256": "e562a2ddfaf8280537795ac5ecd34e3012b6582a147ef69ba6a6a5c08c84757d"
+    },
+    {
+      "file": "licenses/faster-whisper.txt",
+      "upstream": "https://raw.githubusercontent.com/SYSTRAN/faster-whisper/v1.2.1/LICENSE",
+      "sha256": "af6798135e729f8aa6c853936d037dfdea449734d26b8ea6a89805fca758c0d5"
+    },
+    {
+      "file": "licenses/pyav.txt",
+      "upstream": "https://raw.githubusercontent.com/PyAV-Org/PyAV/v16.0.1/LICENSE.txt",
+      "sha256": "76af0461ffb92e19f1c14449e95557d83a2dfaa1baf202d49e5f1d8746c0da19"
+    },
+    {
+      "file": "licenses/imageio-ffmpeg.txt",
+      "upstream": "https://raw.githubusercontent.com/imageio/imageio-ffmpeg/v0.6.0/LICENSE",
+      "sha256": "eca73421d0c905a92e952a553d4d58919c5a507c2c2c76e3c0cf9ba408c299e4"
+    }
+  ],
+  "scope": "Source package references only; embedded native libraries need their own corresponding sources before binary redistribution.",
+  "checked_on": "2026-10-30",
+  "schema": 1
+}

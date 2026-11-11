@@ -1,0 +1,8 @@
+{
+  "version": "1.4.1",
+  "platforms": {
+    "win-x64": { "url": "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.4.1-windows-x86_64.zip", "size": 129599308, "sha256": "5f5b7d0328df17c128b2be338d4567b0d24e56ace8196e88794fec37d1372554", "binary": "agy_acp_server.exe", "helper": "localharness_external.exe" },
+    "mac-arm64": { "url": "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.4.1-darwin-arm64.zip", "size": 112737434, "sha256": "f9bdd68291ae78c38d2141e63bc86b84e6cc7b9f60f71652c68435a7943deb17", "binary": "agy_acp_server.par", "helper": "localharness_external" },
+    "mac-x64": { "url": "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.4.1-darwin-x86_64.zip", "size": 118349036, "sha256": "27e31f096874704f14167b07ef9e84cc77134615ee41d024f7b1c957add85307", "binary": "agy_acp_server.par", "helper": "localharness_external" }
+  }
+}

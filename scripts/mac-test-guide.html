@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="it">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PARLO — primo avvio Mac</title>
+<style>
+  @font-face{font-family:Inter;src:url("src/assets/fonts/inter-latin-400-normal.woff2") format("woff2")}
+  @font-face{font-family:"Bricolage Grotesque";font-weight:700;src:url("src/assets/fonts/bricolage-grotesque-latin-700-normal.woff2") format("woff2")}
+  @font-face{font-family:"Bricolage Grotesque";font-weight:500;src:url("src/assets/fonts/bricolage-grotesque-latin-500-normal.woff2") format("woff2")}
+  :root{font-family:Inter,system-ui,sans-serif;color:#f1f0fb;background:#15142b;color-scheme:dark}
+  *{box-sizing:border-box}body{margin:0;padding:38px 20px}main{max-width:760px;margin:auto}
+  h1,h2{font-family:"Bricolage Grotesque",system-ui,sans-serif}h1{font-size:32px;letter-spacing:-.03em;margin:14px 0}
+  .brand{display:flex;align-items:center;gap:8px;font:700 26px/1 "Bricolage Grotesque",system-ui,sans-serif;letter-spacing:-.03em}
+  p,li{line-height:1.65;color:#bbb9d9}section{background:#1a1b4d;border:1px solid #35355e;border-radius:16px;padding:24px;margin:24px 0}
+  h2{font-size:19px;font-weight:500;margin:0 0 12px}li{margin:12px 0}strong{color:#f1f0fb}
+  button{background:#3b3f9c;color:white;border:0;border-radius:8px;padding:12px 16px;font:inherit;cursor:pointer}
+  select{font:inherit;padding:10px;border:1px solid #494971;border-radius:8px;margin:0 8px 12px 0}
+  textarea{width:100%;resize:vertical;font:13px ui-monospace,monospace;background:#15142b;border:1px solid #494971;border-radius:8px;padding:14px;color:#f1f0fb;min-height:82px}
+  .note{font-size:13px}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}a{color:#c8f169}.result{color:#c8f169;min-height:24px}
+</style>
+<main>
+  <div class="brand"><img src="src/assets/parlo-app-icon.png" srcset="src/assets/parlo-app-icon@2x.png 2x" width="28" height="28" alt="">parlo</div>
+  <h1>Primo avvio su Mac</h1>
+  <p>Estrai tutto lo ZIP sul Desktop, poi apri <strong>Prepara PARLO.command</strong>.
+     Il kit prepara gli strumenti e compila l’app sul tuo Mac. Servono macOS 13 o successivo, Internet e spazio libero.</p>
+  <section>
+    <h2>Se macOS blocca il file prima che si apra Terminale</h2>
+    <p>Il kit di prova non è firmato e notarizzato con Developer ID. Il messaggio da solo non permette
+       di distinguere un controllo di sicurezza da un errore di copia.</p>
+    <p>Se il messaggio riguarda uno sviluppatore non verificato, segui il percorso indicato da Apple:
+       <strong>Impostazioni di Sistema → Privacy e sicurezza → Apri comunque</strong>, se disponibile.
+       Se dice che il file è danneggiato, conserva il testo esatto e usa una copia appena estratta dal nuovo ZIP.</p>
+    <p class="note">Le istruzioni sotto avviano questo kit di prova da Terminale. Usale soltanto per il pacchetto ricevuto da chi sta sviluppando PARLO.
+       Non cambiano le impostazioni di sicurezza del Mac. La verifica SHA-256 del kit rileva errori di copia; non sostituisce la firma Apple.</p>
+    <ol>
+      <li>Apri <strong>Terminale</strong> con Spotlight: premi <strong>⌘ Spazio</strong>, scrivi Terminale e premi Invio.</li>
+      <li>Scegli l’operazione, copia il comando sotto e incollalo nel Terminale con <strong>⌘ V</strong>.</li>
+      <li id="drag-step" hidden>Trascina <strong id="launcher-name">Prepara PARLO.command</strong> dalla cartella estratta alla finestra del Terminale.</li>
+      <li>Premi <strong>Invio</strong>. La preparazione controlla i file del kit prima di scaricare gli strumenti.
+          Se segnala file modificati o mancanti, fermati e invia la diagnostica.</li>
+    </ol>
+    <div class="row">
+      <select id="operation" aria-label="Operazione"><option value="prepare">Prepara PARLO</option><option value="launch">Avvia l’app già preparata</option></select>
+      <button id="copy" type="button">Copia comando</button>
+    </div>
+    <textarea id="command" readonly aria-label="Comando per Terminale" spellcheck="false"></textarea>
+    <p id="result" class="result" aria-live="polite"></p>
+  </section>
+  <section>
+    <h2>Se la preparazione si interrompe</h2>
+    <p>Invia <strong>Diagnostica-PARLO-Mac.zip</strong>, creato nella cartella del kit quando lo script è partito,
+       insieme al testo dell’errore e alla versione di macOS. Contiene log e versioni degli strumenti; non raccoglie call o account.</p>
+    <p class="note">Questa è una prova da compilare sul Mac, ancora da collaudare sul dispositivo.
+       Un’app distribuita normalmente richiede una build Mac firmata e notarizzata.</p>
+    <a href="https://support.apple.com/102445">Indicazioni Apple sull’apertura delle app scaricate</a>
+  </section>
+</main>
+<script>
+  // Quote the entire pathname as one POSIX shell argument, including apostrophes.
+  function shellQuote(value) { return "'" + value.replaceAll("'", "'\\''") + "'"; }
+  function launcherFor(operation) { return operation === "launch" ? "Avvia PARLO.command" : "Prepara PARLO.command"; }
+  function commandFor(url, operation) {
+    const file = new URL(url);
+    // Web previews and Windows paths use the Finder drag-and-drop alternative.
+    if (file.protocol !== "file:" || file.hostname || /^\/[a-z]:\//i.test(file.pathname)) return { text: "/bin/bash ", drag: true };
+    const path = decodeURIComponent(file.pathname);
+    const directory = path.slice(0, path.lastIndexOf("/") + 1);
+    return { text: "/bin/bash " + shellQuote(directory + launcherFor(operation)), drag: false };
+  }
+  function update() {
+    const operation = document.getElementById("operation").value;
+    const command = commandFor(location.href, operation);
+    document.getElementById("command").value = command.text;
+    document.getElementById("drag-step").hidden = !command.drag;
+    document.getElementById("launcher-name").textContent = launcherFor(operation);
+    document.getElementById("result").textContent = "";
+  }
+  document.getElementById("operation").addEventListener("change", update);
+  document.getElementById("copy").addEventListener("click", async () => {
+    const field = document.getElementById("command");
+    field.focus(); field.select();
+    try {
+      await navigator.clipboard.writeText(field.value);
+      document.getElementById("result").textContent = "Comando copiato. Incollalo nel Terminale.";
+    } catch {
+      document.getElementById("result").textContent = "Il comando è selezionato: premi ⌘ C, poi incollalo nel Terminale con ⌘ V.";
+    }
+  });
+  update();
+</script>
+</html>

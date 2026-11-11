@@ -1,0 +1,4 @@
+{"version":"0.162.1","base_url":"https://github.com/openai/codex/releases/download/rust-v0.162.1","platforms":{
+"win-x64":{"archive":"codex-package-x86_64-pc-windows-msvc.tar.gz","size":159746536,"sha256":"3e993a82ff393f4530558dcaadb36bb4f0fd1ea7243e621348e40b469f900f6a","binary":"bin/codex.exe"},
+"mac-arm64":{"archive":"codex-package-aarch64-apple-darwin.tar.gz","size":132224844,"sha256":"88e37ccddf5a0f4ea9dc1be13c66a2a94f9c2d1a04f3ace9053d71b3939e885d","binary":"bin/codex"},
+"mac-x64":{"archive":"codex-package-x86_64-apple-darwin.tar.gz","size":143687717,"sha256":"894ac20afe819d4fa2a4be8cd27c54fd606338b86036e8ed9b6c9978c2dc7aed","binary":"bin/codex"}}}

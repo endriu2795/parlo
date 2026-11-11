@@ -1,0 +1,2 @@
+"NSMicrophoneUsageDescription" = "PARLO usa il microfono per trascrivere localmente la tua voce durante la call.";
+"NSScreenCaptureUsageDescription" = "PARLO acquisisce l’audio delle call dal computer e salva immagini dello schermo solo quando premi il tasto screenshot durante una registrazione. Non registra video.";

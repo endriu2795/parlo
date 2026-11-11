@@ -1,0 +1,30 @@
+{
+  "version": "3.12.15",
+  "release": "20261003",
+  "artifacts": [
+    {
+      "platform": "win-x64",
+      "file": "cpython-3.12.15+20261003-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261003/cpython-3.12.15%2B20261003-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
+      "size": 22011023,
+      "sha256": "6fba7f2ae506facf41d457ea8293c7497910a675c69a4e954875169410a50402",
+      "executable": "python/python.exe"
+    },
+    {
+      "platform": "mac-arm64",
+      "file": "cpython-3.12.15+20261003-aarch64-apple-darwin-install_only_stripped.tar.gz",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261003/cpython-3.12.15%2B20261003-aarch64-apple-darwin-install_only_stripped.tar.gz",
+      "size": 25013243,
+      "sha256": "ad8d0c637c0a36b967b310e2c07254f4d2ca8cabaa7699e55ed6290aceb481a2",
+      "executable": "python/bin/python3"
+    },
+    {
+      "platform": "mac-x64",
+      "file": "cpython-3.12.15+20261003-x86_64-apple-darwin-install_only_stripped.tar.gz",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261003/cpython-3.12.15%2B20261003-x86_64-apple-darwin-install_only_stripped.tar.gz",
+      "size": 24733148,
+      "sha256": "562c30864ece2cb1d3e0ad66a1acd498611a47e5a10ce81b99158bef1ccbd355",
+      "executable": "python/bin/python3"
+    }
+  ]
+}

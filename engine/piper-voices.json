@@ -1,0 +1,17 @@
+{
+  "revision": "5041a7a49ae5b3a0f30e6837769eb03fdbb231bd",
+  "voices": [
+    {
+      "id": "it_IT-serena-medium", "name": "Serena · Standard", "locale": "it-IT", "gender": "Female", "quality": "Standard", "license": "CC-BY-4.0",
+      "path": "it/it_IT/serena/medium/it_IT-serena-medium.onnx", "size": 63516051, "sha256": "fe4e26b2c1236e2a44d2e295cad564d94a0d8b0a9fca1ccdfd70dd4af3116eb5",
+      "config_size": 5254, "config_sha256": "14cb4995874138b2792ae07753b5540942124761af9ae6609f9b520f28837881",
+      "source": "https://huggingface.co/rhasspy/piper-voices/blob/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/it/it_IT/serena/medium/MODEL_CARD"
+    },
+    {
+      "id": "it_IT-serena-high", "name": "Serena · Alta qualità", "locale": "it-IT", "gender": "Female", "quality": "Alta qualità", "license": "CC-BY-4.0",
+      "path": "it/it_IT/serena/high/it_IT-serena-high.onnx", "size": 114204024, "sha256": "7462fbdf03727fb4c0c161286ad538fe6436b7e4b1c3059ef52930032475955f",
+      "config_size": 5252, "config_sha256": "60597bac737a20766591fe24d1315df9a3811dc3509e69bc394cdee19eccbae7",
+      "source": "https://huggingface.co/rhasspy/piper-voices/blob/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/it/it_IT/serena/high/MODEL_CARD"
+    }
+  ]
+}

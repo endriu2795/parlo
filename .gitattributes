@@ -1,0 +1,28 @@
+* text=auto
+*.command text eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.mjs text eol=lf
+*.m text eol=lf
+*.rs text eol=lf
+*.png binary
+*.ico binary
+*.icns binary
+
+# Private documentation and publisher tooling stay outside the public snapshot.
+/.cursor export-ignore
+/.github/actions/windows-vulkan export-ignore
+/.github/workflows/release.yml export-ignore
+/.github/workflows/vulkan-cache.yml export-ignore
+/AGGIORNAMENTI.md export-ignore
+/AGGIORNARE-APP.md export-ignore
+/BUILD-LOCALE.md export-ignore
+"/GESTIONE SHORT - INTERNO.md" export-ignore
+/scripts/export-public.py export-ignore
+/scripts/local-release.mjs export-ignore
+/scripts/local-release.py export-ignore
+/scripts/official-updater.json export-ignore
+/scripts/pubblica-mac.command export-ignore
+/scripts/pubblica-mac.mjs export-ignore
+/scripts/release.py export-ignore
+/scripts/test-local-release.py export-ignore
