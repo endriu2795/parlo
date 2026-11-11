@@ -7,18 +7,22 @@
 
 [English](README.en.md)
 
-App desktop gratuita per registrare call, trascriverle e lavorare sui contenuti
-con un assistente AI. Il codice del progetto è disponibile sotto **GPLv3**.
+PARLO è un’app desktop gratuita per **registrare le call e ritrovarle nel tempo**.
+Avvia la registrazione del microfono e dell’audio del computer con una
+scorciatoia da tastiera configurabile, anche mentre usi un’altra app.
+A fine call, la trascrizione entra nel tuo archivio
+locale. Puoi cercare le parole pronunciate, aggiungere tag e filtrare per tag
+o data.
 
-## Funzioni principali
+## Altre funzioni
 
-- Registrazione di microfono e audio del computer; importazione di audio/video.
-- Trascrizione locale, oppure Groq cloud con chiave personale.
-- Archivio ricercabile, note, screenshot ed esportazione Markdown.
-- Chat con Claude Code, Codex o Ollama, con file e cartelle come fonti.
-- Creazione di documenti, presentazioni e slideshow tramite gli strumenti della chat.
-- Voce online con Edge/ElevenLabs oppure locale con Piper, Kokoro e Qwen3-TTS.
-  Qwen3-TTS è opzionale e inizialmente disponibile su Windows x64.
+- Importa file audio e video da trascrivere.
+- Trascrivi sul computer o usa Groq con la tua chiave.
+- Aggiungi note e screenshot alla call ed esporta la trascrizione in Markdown.
+- Usa Claude Code, Codex o Ollama per fare domande sulla call e creare
+  documenti, presentazioni e slideshow a partire dalle fonti che scegli.
+- Genera voce online con Edge o ElevenLabs oppure in locale con Piper, Kokoro
+  e Qwen3-TTS. Qwen3-TTS è opzionale e inizialmente disponibile su Windows x64.
 
 ## Installare e iniziare
 

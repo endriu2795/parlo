@@ -7,11 +7,24 @@
 
 [Italiano](README.md)
 
-Free desktop app for recording calls, transcribing audio, and working with the
-results through an AI assistant. Record your microphone and system audio or
-import an audio or video file. Transcribe locally or use Groq with your own key.
-The app keeps its archive on your computer. Optional online services have their
-own accounts, terms, and pricing.
+PARLO is a free desktop app for **recording calls and finding them later**.
+Start recording your microphone and system audio with a configurable keyboard
+shortcut, even while using another app. After the call, the transcript goes
+into your local archive.
+Search for words spoken on the call, add tags, and filter by tag or date.
+
+## Other features
+
+- Import audio and video files for transcription.
+- Transcribe on your computer or use Groq with your own key.
+- Add notes and screenshots to a call and export its transcript as Markdown.
+- Use Claude Code, Codex, or Ollama to ask questions about a call and create
+  documents, presentations, or slideshows using the sources you choose.
+- Generate speech online with Edge or ElevenLabs, or locally with Piper,
+  Kokoro, and Qwen3-TTS. Qwen3-TTS is optional and initially available on
+  Windows x64.
+
+Optional online services have their own accounts, terms, and pricing.
 
 ## Install
 
