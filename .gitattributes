@@ -9,7 +9,7 @@
 *.ico binary
 *.icns binary
 
-# Private documentation and publisher tooling stay outside the public snapshot.
+# Private documentation and workflows stay outside source archives.
 /.cursor export-ignore
 /.github/actions/windows-vulkan export-ignore
 /.github/workflows/release.yml export-ignore
@@ -19,10 +19,3 @@
 /BUILD-LOCALE.md export-ignore
 "/GESTIONE SHORT - INTERNO.md" export-ignore
 /scripts/export-public.py export-ignore
-/scripts/local-release.mjs export-ignore
-/scripts/local-release.py export-ignore
-/scripts/official-updater.json export-ignore
-/scripts/pubblica-mac.command export-ignore
-/scripts/pubblica-mac.mjs export-ignore
-/scripts/release.py export-ignore
-/scripts/test-local-release.py export-ignore

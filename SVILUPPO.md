@@ -163,3 +163,5 @@ pubblicare una release sono operazioni distinte.
 
 Per ridistribuire il pacchetto consulta le
 [licenze dei componenti](THIRD_PARTY_NOTICES.md).
+
+I manutentori possono seguire la [guida alla release ufficiale](RELEASE.md).

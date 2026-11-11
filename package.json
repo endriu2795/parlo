@@ -10,6 +10,11 @@
     "desktop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1",
     "desktop:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1",
     "desktop:installer": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Installer",
+    "release": "node scripts/local-release.mjs ship",
+    "release:local": "node scripts/local-release.mjs build",
+    "release:version": "node scripts/local-release.mjs version",
+    "release:upload": "node scripts/local-release.mjs upload",
+    "release:publish": "node scripts/local-release.mjs publish",
     "tauri": "tauri",
     "test:ui": "node scripts/ui-check.cjs",
     "test:annotations": "node --test scripts/test-annotations.mjs"
