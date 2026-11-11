@@ -38,7 +38,7 @@ Per il collaudo e i limiti su Mac, vedi [lo stato della build macOS](MACOS.md).
 
 - [Uso dell'app, assistenti, voce e dati](USO.md).
 - [Compilare il codice e creare il proprio installer su Windows o Mac](SVILUPPO.md).
-- [Esempi per creare una pillola formativa](ISTRUZIONI-PILLOLE.md).
+- [Riutilizzare un template PowerPoint in tutte le chat](USO.md#slide-post-call-con-il-tuo-template).
 - [Licenze e componenti di terze parti](THIRD_PARTY_NOTICES.md).
 
 ## Dati e servizi

@@ -21,6 +21,13 @@ Build targets are Windows x64 and macOS 13+
 (Apple Silicon or Intel). The first local transcription requires a model
 download. Speech language detection is automatic by default.
 
+## Turn a call into slides in your style
+
+In the chat, open **Sources → Add shared files** and select your `.pptx`
+template. It will be available across chats. After a call, enable the template
+for that chat, mention it with `@`, and ask for a new deck based on the
+transcript using the template’s layout, colors, and typography.
+
 ## Build your own installer
 
 Build on the platform you want to package. Install Node.js 22, Rust stable and

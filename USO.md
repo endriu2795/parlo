@@ -25,7 +25,12 @@ Gli strumenti voce esposti alla chat seguono esclusivamente il servizio attivo n
 
 I selettori di voci e modelli mostrano nomi leggibili, lingua e scelta attiva. La ricerca non modifica la selezione. Edge ed ElevenLabs possono caricare il catalogo completo dal rispettivo servizio; gli ID personalizzati rimangono disponibili in una sezione separata.
 
-Per provare il flusso di una pillola formativa trovi istruzioni e richieste di esempio in [ISTRUZIONI-PILLOLE.md](ISTRUZIONI-PILLOLE.md).
+## Slide post-call con il tuo template
+
+1. In una chat, apri **Fonti → Aggiungi file condivisi** e seleziona il tuo template `.pptx`. Il file sarà disponibile tra le fonti di tutte le chat.
+2. Dopo una call, apri la sua chat e verifica che il template sia spuntato. Digita `@` e selezionalo nella richiesta.
+
+> Crea una nuova presentazione PPTX dalla trascrizione. Usa @Template.pptx come riferimento per layout, colori e tipografia. Includi le decisioni e i prossimi passi emersi nella call.
 
 ## Come iniziare
 
