@@ -16,15 +16,15 @@ Search for words spoken on the call, add tags, and filter by tag or date.
 ## Other features
 
 - Import audio and video files for transcription.
-- Transcribe on your computer or use Groq with your own key.
+- Transcribe entirely on your computer or use a supported cloud service with
+  your own API key.
 - Add notes and screenshots to a call and export its transcript as Markdown.
-- Use Claude Code, Codex, or Ollama to ask questions about a call and create
-  documents, presentations, or slideshows using the sources you choose.
-- Generate speech online with Edge or ElevenLabs, or locally with Piper,
-  Kokoro, and Qwen3-TTS. Qwen3-TTS is optional and initially available on
-  Windows x64.
+- Choose a local or cloud AI assistant to ask questions about a call and
+  create documents, presentations, or slideshows using the sources you choose.
+- Generate speech from text with a local engine or an online service.
 
 Optional online services have their own accounts, terms, and pricing.
+[Supported services and setup (Italian)](USO.md)
 
 ## Install
 

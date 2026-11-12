@@ -17,12 +17,13 @@ o data.
 ## Altre funzioni
 
 - Importa file audio e video da trascrivere.
-- Trascrivi sul computer o usa Groq con la tua chiave.
+- Trascrivi interamente sul computer oppure in cloud con la tua chiave per
+  un servizio supportato.
 - Aggiungi note e screenshot alla call ed esporta la trascrizione in Markdown.
-- Usa Claude Code, Codex o Ollama per fare domande sulla call e creare
+- Scegli un assistente AI locale o cloud per fare domande sulla call e creare
   documenti, presentazioni e slideshow a partire dalle fonti che scegli.
-- Genera voce online con Edge o ElevenLabs oppure in locale con Piper, Kokoro
-  e Qwen3-TTS. Qwen3-TTS è opzionale e inizialmente disponibile su Windows x64.
+- Genera audio da un testo con un motore locale o un servizio di sintesi
+  vocale online.
 
 ## Installare e iniziare
 
@@ -32,9 +33,9 @@ o data.
 - **macOS 13+.** Per ora puoi compilare l’app dai sorgenti su Apple Silicon o
   Intel. [Istruzioni per macOS](SVILUPPO.md#mac-apple-silicon-o-intel)
 
-Scegli le sorgenti audio e avvia una registrazione. Prepara il modello locale
-per trascrivere sul computer oppure configura Groq. Per usare la chat, scegli
-l’assistente nelle impostazioni.
+Scegli le sorgenti audio e avvia una registrazione. Per trascrivere, prepara
+il modello locale oppure configura un servizio cloud supportato. Scegli
+l’assistente per la chat nelle impostazioni.
 
 Gli installer includono Python e gli strumenti per documenti e media.
 I servizi esterni opzionali possono prevedere costi e quote propri.
@@ -50,11 +51,10 @@ Per il collaudo e i limiti su Mac, vedi [lo stato della build macOS](MACOS.md).
 
 ## Dati e servizi
 
-L'archivio viene salvato sul computer dell'utente e non è cifrato dall'app.
-La trascrizione locale elabora l'audio sul computer; Groq, gli assistenti cloud,
-la voce online e le operazioni web inviano i contenuti necessari ai rispettivi
-servizi. Con Ollama l'inferenza è locale; gli strumenti web e il servizio voce
-scelto mantengono il proprio comportamento. Dettagli in [USO.md](USO.md).
+L’archivio resta sul tuo computer. PARLO lo salva senza cifratura. Con la
+trascrizione locale, l’audio viene elaborato sul dispositivo. Se scegli un
+servizio cloud, la voce online o uno strumento web, i dati necessari
+all’operazione vengono inviati al servizio scelto. [Guida d’uso e servizi supportati](USO.md)
 
 ## Licenza
 
