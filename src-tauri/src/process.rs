@@ -275,8 +275,7 @@ pub fn inference(
     }
     let worker = engine.as_mut().unwrap();
     if !live {
-        *state.final_process.guard() = Some(worker.child.clone());
-        if state.processing_cancel.load(Ordering::SeqCst) { worker.child.cancel(); }
+        crate::processing::attach_child(state, worker.child.clone());
     }
     if live {
         let mut active = state.live_process.guard();
@@ -312,7 +311,7 @@ pub fn inference(
                         let segments: Vec<Segment> = serde_json::from_value(value["segments"].clone())
                             .map_err(|e| e.to_string())?;
                         db::store_draft(&mut state.db.guard(), id, &segments)?;
-                        let _ = app.emit("calls-changed", ());
+                        crate::detail_changed(app, id);
                     }
                 }
                 Some("live_source") if live => {
@@ -330,18 +329,18 @@ pub fn inference(
                     }
                 }
                 Some("stage") => {
-                    let mut status = state.status.guard();
                     let text = value["text"].as_str().unwrap_or_default().to_string();
                     if live {
+                        let mut status = state.status.guard();
                         if status.capture.as_ref().map(|c| c.id.as_str())
                             == directory.file_name().and_then(|s| s.to_str())
                         {
                             status.live_stage = text;
                         }
+                        let _ = app.emit("status-changed", status.clone());
                     } else {
-                        status.stage = text;
+                        crate::processing::report_stage(app, state, text);
                     }
-                    let _ = app.emit("status-changed", status.clone());
                 }
                 Some("result") => return Ok(value),
                 Some("error") => {
@@ -354,7 +353,7 @@ pub fn inference(
             }
         }
     })();
-    if !live { state.final_process.guard().take(); }
+    if !live { crate::processing::detach_child(state); }
     if run.is_err() {
         engine.take();
     }
@@ -547,7 +546,7 @@ pub fn chat(app: &AppHandle, state: &Arc<AppState>, id: &str, prompt: &str) -> R
                 failure = Some(e);
                 break;
             }
-            let _ = app.emit("calls-changed", ());
+            crate::detail_changed(app, id);
         }
         if value["type"] == "control_request" {
             let response = if value["request"]["subtype"] == "can_use_tool" {
@@ -714,8 +713,8 @@ mod tests {
             std::fs::copy(models.join("benchmark.wav"),root.join(folder).join(format!("{source}.wav"))).unwrap();
         }
         let state=AppState{db:Mutex::new(crate::db::open(Path::new(":memory:")).unwrap()),status:Mutex::new(Status::default()),
-            recorder:Mutex::new(None),operation:Mutex::new(()),data_dir:root.clone(),queue:Mutex::new(Default::default()),engine:Mutex::new(None),
-            live_engine:Mutex::new(None),live_process:Mutex::new(None),final_process:Mutex::new(None),processing_cancel:Default::default(),chat_control:crate::connectors::ChatControl::default(),shortcut_capture:Default::default(),
+            recorder:Mutex::new(None),operation:Mutex::new(()),data_dir:root.clone(),processing: Default::default(),engine:Mutex::new(None),
+            live_engine:Mutex::new(None),live_process:Mutex::new(None),chat_control:crate::connectors::ChatControl::default(),shortcut_capture:Default::default(),
             provision:Default::default(),auth:crate::auth::AuthManager::default(),codex_auth:crate::codex::AuthManager::default(),gemini_auth:Default::default(),catalog:Mutex::new(None)};
         let settings=Settings{python_bin:python.to_string_lossy().into_owned(),whisper_model:models.join("models/whisper-turbo").to_string_lossy().into_owned(),language:"en".into(),compute_mode:"auto".into(),..Default::default()};
         let mut engine=Engine::start(&state,&settings,false).unwrap();

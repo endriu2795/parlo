@@ -23,8 +23,8 @@ export const api = {
   removeSource: (id: string, sourceId: string) => invoke<import("./types").SourceInventory>("remove_chat_source", { id, sourceId }),
   revealSource: (id: string, sourceId: string) => invoke<void>("reveal_chat_source", { id, sourceId }),
   revealChatFile: (path: string) => invoke<void>("reveal_chat_file", { path }),
-  list: async (query = "", offset = 0, limit = 10, dateFrom: string | null = null, dateTo: string | null = null, tags: string[] = []): Promise<CallPage> => {
-    const page = await invoke<CallPage & {search_results?: Record<string, NonNullable<import("./types").Call["search"]>>}>("list_calls", { query, offset, limit, dateFrom, dateTo, tags });
+  list: async (filters: { query: string; dateFrom: string | null; dateTo: string | null; tags: string[] }, cursor: import("./types").CallCursor | null, limit: number, callId?: string): Promise<CallPage> => {
+    const page = await invoke<CallPage & {search_results?: Record<string, NonNullable<import("./types").Call["search"]>>}>("list_calls", { ...filters, cursor, limit, callId });
     return {...page, items: page.items.map(call => ({...call, search: page.search_results?.[call.id]}))};
   },
   tags: () => invoke<import("./types").TagCount[]>("list_tags"),
@@ -53,7 +53,7 @@ export const api = {
   ttsDeleteKey: () => invoke<void>("tts_delete_key"),
   theme: (theme: "dark" | "light") => invoke<Settings>("set_theme", { theme }),
   saveSettings: (settings: Settings) =>
-    invoke<void>("save_settings", { settings }),
+    invoke<{ settings: Settings; cleanup_error: string | null; engine_error: string | null }>("save_settings", { settings }),
   status: () => invoke<Status>("get_status"),
   health: () => invoke<Health>("get_health"),
   shortcutCapture: (active: boolean) => invoke<void>("shortcut_capture", { active }),

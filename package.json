@@ -1,12 +1,13 @@
 {
   "name": "callnotes",
-  "version": "0.3.14",
+  "version": "0.3.16",
   "private": true,
   "license": "GPL-3.0-only",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
+    "desktop:deps": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-dev.ps1",
     "desktop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1",
     "desktop:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1",
     "desktop:installer": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Installer",
@@ -20,6 +21,7 @@
     "test:annotations": "node --test scripts/test-annotations.mjs"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.14.26",
     "@tauri-apps/api": "^2.10.0",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",

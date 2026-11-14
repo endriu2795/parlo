@@ -44,37 +44,25 @@ template. It will be available across chats. After a call, enable the template
 for that chat, mention it with `@`, and ask for a new deck based on the
 transcript using the template’s layout, colors, and typography.
 
-## Build your own installer
+## Build from source
 
-Build on the platform you want to package. Install Node.js 22, Rust stable and
-Python 3.12 first. On Windows, use the MSVC Rust toolchain, Visual Studio Build
-Tools with Desktop development with C++, and WebView2. On Mac, install CMake
-and the Apple command-line tools with `xcode-select --install`.
-
-Windows (PowerShell):
-
-```powershell
-npm.cmd ci
-npm.cmd run desktop:installer
-```
-
-Run the setup `.exe` from `src-tauri/target/release/bundle/nsis`.
-
-Mac (Terminal):
+On macOS 13 or later, run these commands from the project folder. If macOS asks
+to install the Apple command-line tools, finish that installation and rerun
+the first command.
 
 ```sh
-npm ci
-python3 scripts/build-mac.py --adhoc
+bash scripts/mac-test.command --deps
+bash scripts/mac-test.command --build
 ```
 
-Open the `.dmg` in `src-tauri/target/release/bundle` and copy the app to
-Applications. Use your own Developer ID if you plan to distribute a signed
-Mac build. If you want your fork and the official app side by side, set a
-distinct `productName` and `identifier` in `src-tauri/tauri.conf.json` before
-building. Update checks are off by default for these builds.
+On Windows x64, install the Tauri prerequisites first, then run in PowerShell:
 
-See the [development guide in Italian](SVILUPPO.md) for development builds,
-optional GPU support, and how to configure an update channel for your fork.
+```powershell
+npm.cmd run desktop:deps
+npm.cmd run desktop:build
+```
+
+See the [development guide](SVILUPPO.md) for output paths, installers and tests.
 
 ## License
 

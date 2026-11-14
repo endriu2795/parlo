@@ -17,12 +17,16 @@ for directory in ('src', 'src-tauri/src', 'public/fonts'):
 for name in ('package.json', 'package-lock.json', 'index.html', 'overlay.html', 'tsconfig.json', 'vite.config.ts',
              'engine/worker.py', 'engine/video.py', 'engine/acceleration.py', 'engine/cpp_live.py', 'engine/transcript_quality.py', 'engine/calibrate.py', 'engine/model_download.py', 'engine/import_media.py',
              'engine/requirements-lock.txt', 'engine/python-runtime.json', 'engine/claude-runtime.json', 'engine/codex-runtime.json', 'engine/antigravity-runtime.json', 'scripts/extract-antigravity.py',
+             'engine/document_tools.py', 'engine/speech_tools.py', 'engine/PIPER-LICENSES.md', 'engine/DOCUMENT_TOOLS.md', 'engine/piper-voices.json',
+             'engine/documents-requirements-lock.txt', 'engine/document_runtime_probe.py', 'engine/qwen-tts-model.json', 'engine/qwen-tts-requirements.txt',
+             'engine/qwen_speech.py', 'engine/qwen_setup.py', 'engine/QWEN-MODEL-LICENSE.txt', 'engine/web_tools.py',
              'src-tauri/Cargo.toml', 'src-tauri/Cargo.lock', 'src-tauri/build.rs', 'src-tauri/tauri.conf.json',
              'src-tauri/tauri.macos.conf.json', 'src-tauri/Info.plist', 'src-tauri/Entitlements.plist',
+             'src-tauri/capabilities/default.json', 'src-tauri/capabilities/main-window.json',
              'src-tauri/macos/it.lproj/InfoPlist.strings',
              'scripts/build-mac.py', 'scripts/build-whisper-metal.py', 'scripts/bundle_python.py', 'scripts/prepare-runtime.py',
              'scripts/mac-test.command', 'scripts/mac-launch.command', 'scripts/mac-test.mjs',
-             'scripts/install-engine.py', 'scripts/setup-engine.py', 'scripts/setup-accelerator.py', 'MACOS.md'):
+             'scripts/install-engine.py', 'scripts/setup-engine.py', 'scripts/setup-accelerator.py', 'MACOS.md', 'SVILUPPO.md', 'USO.md'):
     if not (root / name).is_file():
         raise SystemExit(f'File necessario assente: {name}')
     files.append((root / name, name))

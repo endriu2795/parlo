@@ -13,13 +13,13 @@ use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
-use tauri::Emitter;
 
 const MODEL: &str = "whisper-large-v3-turbo";
 const RATE: usize = 16000;
 const CHUNK: usize = 300 * RATE;
 const OVERLAP: usize = RATE;
 const RESPONSE_LIMIT: u64 = 8 * 1024 * 1024;
+const MAX_WORD_START_REGRESSION: f64 = 0.5;
 
 fn credential() -> Result<keyring::Entry> {
     // Preserve credentials already saved in the system vault.
@@ -335,9 +335,8 @@ fn ensure_all_parts_completed(failures: &[String]) -> Result<()> {
     if failures.is_empty() {return Ok(());}
     Err(format!("{} parti Groq da recuperare. Le altre parti sono state elaborate e l’audio completo è conservato.\n{}",failures.len(),failures.join("\n")))
 }
-fn valid_timestamps(items: &[Word], seconds: f64) -> bool {
+fn valid_ranges(items: &[Word], seconds: f64) -> bool {
     !items.is_empty()
-        && !items.windows(2).any(|pair| pair[1].start < pair[0].start)
         && !items.iter().any(|word| {
             !word.start.is_finite()
                 || !word.end.is_finite()
@@ -347,6 +346,40 @@ fn valid_timestamps(items: &[Word], seconds: f64) -> bool {
         })
         && items.iter().any(|word| !word.word.trim().is_empty())
 }
+fn valid_timestamps(items: &[Word], seconds: f64) -> bool {
+    valid_ranges(items, seconds) && !items.windows(2).any(|pair| pair[1].start < pair[0].start)
+}
+
+fn aligned_words(words: &[Word], seconds: f64) -> Option<Cow<'_, [Word]>> {
+    if !valid_ranges(words, seconds) {
+        return None;
+    }
+    let mut latest_start = 0.0_f64;
+    let mut adjusted = false;
+    for word in words {
+        // Compare against the running maximum so several small inversions
+        // cannot accumulate into a large shift.
+        if latest_start - word.start > MAX_WORD_START_REGRESSION {
+            return None;
+        }
+        adjusted |= word.start < latest_start;
+        latest_start = latest_start.max(word.start);
+    }
+    if !adjusted {
+        return Some(Cow::Borrowed(words));
+    }
+
+    // Keep Groq's text order. Clamp only backwards starts and ensure the
+    // corresponding ends still form valid ranges.
+    latest_start = 0.0;
+    let mut words = words.to_vec();
+    for word in &mut words {
+        latest_start = latest_start.max(word.start);
+        word.start = latest_start;
+        word.end = word.end.max(word.start);
+    }
+    Some(Cow::Owned(words))
+}
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum TimingQuality { EndClipped, UnalignedText }
 struct TimedUnits<'a> { items: Cow<'a,[Word]>, quality: Option<TimingQuality> }
@@ -355,8 +388,8 @@ impl std::ops::Deref for TimedUnits<'_> {
     fn deref(&self) -> &Self::Target { &self.items }
 }
 fn timed_units(response: &Transcript, seconds: f64) -> Result<TimedUnits<'_>> {
-    if valid_timestamps(&response.words, seconds) {
-        return Ok(TimedUnits{items:Cow::Borrowed(&response.words),quality:None});
+    if let Some(items) = aligned_words(&response.words, seconds) {
+        return Ok(TimedUnits { items, quality: None });
     }
     // Groq may omit word alignment or return inconsistent word times while
     // retaining valid segment timestamps. Use those actual ranges unchanged.
@@ -564,17 +597,16 @@ pub fn transcribe(
     let mut result = vec![];
     let mut alignment_failures=Vec::new();
     for (index, first) in (0..length).step_by(CHUNK).enumerate() {
-        crate::ensure_processing_active(state)?;
+        crate::processing::ensure_active(state)?;
         let last = (first + CHUNK).min(length);
         let start = first.saturating_sub(OVERLAP);
         let end = (last + OVERLAP).min(length);
-        state.status.guard().stage = format!(
+        crate::processing::report_stage(app, state, format!(
             "{} {}/{}",
             if custom { crate::locale::tr("Trascrizione tramite endpoint · parte", "Endpoint transcription · part") } else { crate::locale::tr("Trascrizione Groq · parte", "Groq transcription · part") },
             index + 1,
             length.div_ceil(CHUNK)
-        );
-        crate::changed(app, state);
+        ));
         let mut mixed = vec![0f32; end - start];
         let (mut mic, mut pc) = (None, None);
         for (name, reader) in &mut tracks {
@@ -621,19 +653,18 @@ pub fn transcribe(
                 response
             },
             None => {
-                crate::ensure_processing_active(state)?;
+                crate::processing::ensure_active(state)?;
                 let unaligned=timestamp_failure_path(&path);
                 let response = retry_transient(
                     || request(&client, &key, settings, &audio, unaligned.is_file()),
                     |retry| {
-                        state.status.guard().stage = format!("{} {}/3 · {} {}/{}", crate::locale::tr("Connessione interrotta · nuovo tentativo", "Connection interrupted · retry"), retry + 1, crate::locale::tr("parte", "part"), index + 1, length.div_ceil(CHUNK));
-                        crate::changed(app, state);
+                        crate::processing::report_stage(app, state, format!("{} {}/3 · {} {}/{}", crate::locale::tr("Connessione interrotta · nuovo tentativo", "Connection interrupted · retry"), retry + 1, crate::locale::tr("parte", "part"), index + 1, length.div_ceil(CHUNK)));
                         // Wait briefly without preventing the user from cancelling.
                         for _ in 0..if retry == 1 { 12 } else { 40 } {
-                            crate::ensure_processing_active(state)?;
+                            crate::processing::ensure_active(state)?;
                             std::thread::sleep(Duration::from_millis(250));
                         }
-                        crate::ensure_processing_active(state)
+                        crate::processing::ensure_active(state)
                     },
                 )
                     .map_err(|error|chunk_error(&error,index,first,last,length.div_ceil(CHUNK)))?;
@@ -649,7 +680,7 @@ pub fn transcribe(
                 response
             }
         };
-        crate::ensure_processing_active(state)?;
+        crate::processing::ensure_active(state)?;
         if append_response(&mut result,&response,seconds,start,first,last,mic.as_deref(),pc.as_deref())? {
             // Imprecise alignment must not trigger deletion of the source audio.
             fs::write(directory.join("keep-audio"),b"groq-unaligned-text").map_err(|error|format!("Impossibile conservare l’audio da verificare: {error}"))?;
@@ -659,9 +690,9 @@ pub fn transcribe(
             .and_then(|name| name.to_str())
             .unwrap_or_default();
         let _guard = state.operation.guard();
-        crate::ensure_processing_active(state)?;
+        crate::processing::ensure_active(state)?;
         crate::db::store_draft(&mut state.db.guard(), id, &result)?;
-        let _ = app.emit("calls-changed", ());
+        crate::detail_changed(app, id);
     }
     ensure_all_parts_completed(&alignment_failures)?;
     Ok(crate::transcript_quality::review(result))
@@ -790,11 +821,35 @@ mod tests {
         assert_eq!(timed_units(&cached, 5.).unwrap()[0].end, 4.5);
     }
     #[test]
+    fn small_word_timestamp_inversions_keep_accented_text_in_provider_order() {
+        let response: Transcript = serde_json::from_str(
+            r#"{
+                "text": "l pu decidere",
+                "words": [
+                    {"word": "l'AI", "start": 1.5, "end": 1.7},
+                    {"word": "può", "start": 1.08, "end": 1.4},
+                    {"word": "decidere", "start": 1.8, "end": 2.1}
+                ],
+                "segments": [{"text": "l pu decidere", "start": 1, "end": 2.1}]
+            }"#,
+        )
+        .unwrap();
+        let units = timed_units(&response, 3.).unwrap();
+        assert_eq!((units[1].start, units[1].end), (1.5, 1.5));
+        assert_eq!((response.words[1].start, response.words[1].end), (1.08, 1.4));
+        let mut result = vec![];
+        append_response(&mut result, &response, 3., 0, 0, 3 * RATE, None, None).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].text, "l'AI può decidere");
+        assert_eq!((result[0].start_ms, result[0].end_ms), (1500, 2100));
+    }
+    #[test]
     fn invalid_word_alignment_uses_valid_segments_but_never_fabricates_times() {
         for words in [
             r#"[{"word":"test","start":2,"end":1}]"#,
             r#"[{"word":"test","start":0,"end":50}]"#,
             r#"[{"word":"a","start":2,"end":3},{"word":"b","start":1,"end":2}]"#,
+            r#"[{"word":"a","start":2,"end":3},{"word":"b","start":1.6,"end":2},{"word":"c","start":1.2,"end":2}]"#,
         ] {
             let mut response: Transcript = serde_json::from_str(&format!(
                 r#"{{

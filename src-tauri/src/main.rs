@@ -19,6 +19,7 @@ mod model;
 mod notifications;
 mod locale;
 mod process;
+mod processing;
 mod engine_child;
 mod provision;
 mod python_runtime;
@@ -66,12 +67,10 @@ pub struct AppState {
     pub recorder: Mutex<Option<audio::Recording>>,
     pub operation: Mutex<()>,
     pub data_dir: PathBuf,
-    pub queue: Mutex<std::collections::VecDeque<(String, Settings)>>,
+    pub processing: Mutex<processing::Queue>,
     pub engine: Mutex<Option<process::Engine>>,
     pub live_engine: Mutex<Option<process::Engine>>,
     pub live_process: Mutex<Option<Arc<engine_child::EngineChild>>>,
-    pub final_process: Mutex<Option<Arc<engine_child::EngineChild>>>,
-    pub processing_cancel: std::sync::atomic::AtomicBool,
     pub auth: auth::AuthManager,
     pub codex_auth: codex::AuthManager,
     pub gemini_auth: gemini::AuthManager,
@@ -107,7 +106,13 @@ pub fn changed(app: &tauri::AppHandle, state: &AppState) {
         let _ = tray.set_tooltip(Some(tooltip));
     }
     let _ = app.emit("status-changed", status);
-    let _ = app.emit("calls-changed", ());
+}
+fn detail_changed(app: &tauri::AppHandle, id: &str) {
+    let _ = app.emit("call-detail-changed", id);
+}
+fn archive_changed(app: &tauri::AppHandle, id: Option<&str>) {
+    if let Some(id) = id { detail_changed(app, id); }
+    let _ = app.emit("calls-changed", id);
 }
 pub fn temp_dir(state: &AppState, id: &str) -> Result<PathBuf> {
     let parsed = uuid::Uuid::parse_str(id).map_err(|_| "Identificatore call non valido")?;
@@ -178,7 +183,13 @@ fn cleanup_core(state: &AppState) -> Result<usize> {
     Ok(ids.len())
 }
 fn cleanup_archive(app: &tauri::AppHandle, state: &Shared) -> Result<usize> {
-    let removed = cleanup_core(state)?;
+    let result = cleanup_core(state);
+    // Earlier removals may have succeeded before a later one failed.
+    if !matches!(result, Ok(0)) {
+        archive_changed(app, None);
+        let _ = app.emit("archive-tags-changed", ());
+    }
+    let removed = result?;
     sharing::schedule_expiration(app, state);
     sharing::schedule_title_sync(app, state, None);
     Ok(removed)
@@ -187,20 +198,26 @@ fn cleanup_archive(app: &tauri::AppHandle, state: &Shared) -> Result<usize> {
 fn list_calls(
     state: State<Shared>,
     query: String,
-    offset: usize,
+    cursor: Option<model::CallCursor>,
+    call_id: Option<String>,
     limit: usize,
     date_from: Option<String>,
     date_to: Option<String>,
     tags: Option<Vec<String>>,
 ) -> Result<CallPage> {
+    let slice = match (cursor.as_ref(), call_id.as_deref()) {
+        (_, Some(id)) => db::ArchiveSlice::Call(id),
+        (Some(cursor), None) => db::ArchiveSlice::After(cursor),
+        (None, None) => db::ArchiveSlice::First,
+    };
     db::page_filtered(
         &state.db.guard(),
         &query,
-        offset,
         limit.clamp(1, 100),
         date_from.as_deref(),
         date_to.as_deref(),
         tags.as_deref().unwrap_or_default(),
+        slice,
     )
 }
 #[tauri::command]
@@ -393,7 +410,8 @@ fn start_engine_setup(app: tauri::AppHandle, state: Shared, model: String, previ
         let mut setup = state.provision.0.guard();
         setup.running = false;
         match result { Ok(()) => { setup.message = tr("Trascrizione locale pronta.", "Local transcription is ready.").into(); }, Err(error) => { setup.message = tr("Download da completare", "Download incomplete").into(); setup.error=Some(error); } }
-        drop(setup); changed(&app, &state);
+        drop(setup);
+        let _ = app.emit("configuration-changed", ());
         if success && !preview { if let Err(error) = ensure_engine(&app, &state) { let _ = app.emit("app-error", error); } }
     });
     Ok(())
@@ -409,8 +427,15 @@ fn set_theme(app: tauri::AppHandle, state: State<Shared>, theme: String) -> Resu
     apply_theme(&app, &settings);
     Ok(settings)
 }
+#[derive(serde::Serialize)]
+struct SavedSettings {
+    settings: Settings,
+    cleanup_error: Option<String>,
+    engine_error: Option<String>,
+}
+
 #[tauri::command]
-fn save_settings(app: tauri::AppHandle, state: State<Shared>, mut settings: Settings) -> Result<()> {
+fn save_settings(app: tauri::AppHandle, state: State<Shared>, mut settings: Settings) -> Result<SavedSettings> {
     let _guard = state.operation.guard();
     let status = state.status.guard().clone();
     if status.capture.is_some() {
@@ -461,10 +486,10 @@ fn save_settings(app: tauri::AppHandle, state: State<Shared>, mut settings: Sett
     drop(_guard);
     if !status.chat_busy { state.gemini_auth.discard_chat(); }
     apply_theme(&app, &settings);
-    cleanup_archive(&app, state.inner())?;
-    changed(&app, &state);
-    ensure_engine(&app, state.inner())?;
-    Ok(())
+    let cleanup_error = cleanup_archive(&app, state.inner()).err();
+    let engine_error = ensure_engine(&app, state.inner()).err();
+    let _ = app.emit("configuration-changed", ());
+    Ok(SavedSettings { settings, cleanup_error, engine_error })
 }
 fn start_core(app: &tauri::AppHandle, state: &Shared) -> Result<()> {
     start_with_region(app, state, None)
@@ -559,6 +584,7 @@ fn start_with_region(app: &tauri::AppHandle, state: &Shared, region: Option<vide
     }
     if let Err(error) = screen_dock::show_capture(app, state, &id) { let _ = app.emit("app-error", error); }
     changed(app, state);
+    archive_changed(app, Some(&id));
     // When a device fails, finalize all remaining tracks and leave a recoverable failed call.
     let app = app.clone();
     let state = state.clone();
@@ -612,6 +638,7 @@ fn stop_core(app: &tauri::AppHandle, state: &Shared) -> Result<()> {
     if !draft.is_empty() {
         if let Err(e) = db::store_draft(&mut state.db.guard(), &id, &draft) {
             changed(app, state);
+            archive_changed(app, Some(&id));
             notifications::recording_issue(app, &state.data_dir, &id, tr("Registrazione interrotta", "Recording interrupted"), tr("La registrazione si è fermata. L’audio e il video acquisiti sono conservati: apri PARLO per riprovare.", "Recording stopped. Your audio and video were saved. Open PARLO to try again."));
             return Err(e);
         }
@@ -625,9 +652,10 @@ fn stop_core(app: &tauri::AppHandle, state: &Shared) -> Result<()> {
                 Some(duration),
                 warning.as_deref(),
             )?;
-            if let Err(error) = begin_processing(app, state, &id) {
+            if let Err(error) = processing::enqueue(app, state, &id) {
                 db::status(&state.db.guard(), &id, "failed", Some(duration), Some(&error))?;
                 changed(app, state);
+                archive_changed(app, Some(&id));
                 return Err(error);
             }
         }
@@ -640,148 +668,13 @@ fn stop_core(app: &tauri::AppHandle, state: &Shared) -> Result<()> {
                 Some(&format!("Registrazione incompleta: {e}")),
             )?;
             changed(app, state);
+            archive_changed(app, Some(&id));
             notifications::recording_issue(app, &state.data_dir, &id, tr("Registrazione interrotta", "Recording interrupted"), tr("La registrazione si è fermata. I file acquisiti sono conservati: apri PARLO per vedere l’errore e riprovare.", "Recording stopped. Your files were saved. Open PARLO to see the error and try again."));
             return Err(e);
         }
     }
     changed(app, state);
-    Ok(())
-}
-// The operation mutex serializes queue transitions with capture start/stop.
-fn enqueue_job(state: &AppState, id: &str, settings: Settings) -> Result<bool> {
-    let mut status = state.status.guard();
-    if status.processing.as_deref() == Some(id) || status.queued.iter().any(|q| q == id) {
-        return Err("Questa call è già in coda.".into());
-    }
-    state.queue.guard().push_back((id.into(), settings));
-    status.queued.push(id.into());
-    if status.processing.is_none() {
-        status.processing = Some(id.into());
-        Ok(true)
-    } else {
-        Ok(false)
-    }
-}
-fn next_job(state: &AppState) -> Option<(String, Settings)> {
-    let mut status = state.status.guard();
-    let job = state.queue.guard().pop_front();
-    if let Some((id, _)) = &job {
-        status.processing = Some(id.clone());
-        status.queued.retain(|q| q != id);
-        status.stage = if job.as_ref().is_some_and(|(_, settings)| settings.remote_stt()) {
-            tr("Preparazione della trascrizione tramite endpoint…", "Preparing endpoint transcription…").into()
-        } else { tr("Preparazione del motore locale…", "Preparing the local engine…").into() };
-    } else {
-        status.processing = None;
-        status.stage.clear();
-    }
-    job
-}
-fn ensure_processing_active(state: &AppState) -> Result<()> {
-    if state.processing_cancel.load(std::sync::atomic::Ordering::SeqCst) {
-        Err("Elaborazione interrotta. Puoi riprovare dalla call.".into())
-    } else { Ok(()) }
-}
-fn begin_processing(app: &tauri::AppHandle, state: &Shared, id: &str) -> Result<()> {
-    let settings = db::get_settings(&state.db.guard())?;
-    let dir = temp_dir(state, id)?;
-    if !dir.join("microphone.wav").is_file() && !dir.join("system.wav").is_file() && !dir.join("registrazione.wav").is_file() {
-        return Err("Non è disponibile audio temporaneo da elaborare.".into());
-    }
-    stt::ensure_ready(&settings)?;
-    let previous = db::detail(&state.db.guard(), id)?.call.error;
-    {
-        let status = state.status.guard();
-        if status.processing.as_deref() == Some(id) || status.queued.iter().any(|q| q == id) {
-            return Err("Questa call è già in coda.".into());
-        }
-    }
-    db::status(
-        &state.db.guard(),
-        id,
-        "pending",
-        None,
-        previous.as_deref(),
-    )?;
-    let spawn = enqueue_job(state, id, settings)?;
-    if spawn {
-        let app = app.clone();
-        let state = state.clone();
-        std::thread::spawn(move || {
-          let _power = power::ProcessingPower::new();
-          loop {
-            let job = {
-                let _guard = state.operation.guard();
-                state.processing_cancel.store(false, std::sync::atomic::Ordering::SeqCst);
-                let job = next_job(&state);
-                if job.is_none() { state.engine.guard().take(); }
-                job
-            };
-            changed(&app, &state);
-            let Some((id, settings)) = job else { break };
-            let previous = db::detail(&state.db.guard(), &id)
-                .ok()
-                .and_then(|d| d.call.error);
-            let warning = previous.filter(|e| e.starts_with("Registrazione incompleta:") || e.starts_with("Discontinuità audio:") || e.starts_with("Discontinuità registrazione:"));
-            // A panic while transcribing must fail only this call: otherwise the queue keeps
-            // it as "processing" and every later call waits until the app restarts.
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                ensure_processing_active(&state)?;
-                db::status(
-                    &state.db.guard(),
-                    &id,
-                    "processing",
-                    None,
-                    warning.as_deref(),
-                )?;
-                ensure_processing_active(&state)?;
-                if temp_dir(&state, &id)?.join("keep-video").is_file() {
-                    state.status.guard().stage = tr("Salvataggio video con audio…", "Saving video with audio…").into();
-                    changed(&app, &state);
-                    video::finalize(&state, &id, &settings)?;
-                    ensure_processing_active(&state)?;
-                    let _ = app.emit("calls-changed", ());
-                }
-                let directory = temp_dir(&state, &id)?;
-                let segments = if settings.remote_stt() {
-                    stt::transcribe(&app, &state, &settings, &directory)?
-                } else { process::transcribe(&app, &state, &settings, &directory)? };
-                ensure_processing_active(&state)?;
-                if segments.is_empty() {
-                    return Err("Trascrizione vuota. Audio temporaneo conservato: verifica il microfono e riprova, oppure elimina la call.".into());
-                }
-                // Commit and audio cleanup must finish atomically relative to cancellation.
-                let _finalize_guard = state.operation.guard();
-                ensure_processing_active(&state)?;
-                db::store_segments(&mut state.db.guard(), &id, &segments)?;
-                finalize_audio(&state, &id)?;
-                db::status(
-                    &state.db.guard(),
-                    &id,
-                    "ready",
-                    None,
-                    warning.as_deref(),
-                )
-            }))
-            .unwrap_or_else(|panic| {
-                // The worker may be mid-request: restart it for the next call.
-                state.engine.guard().take();
-                Err(format!("Errore interno durante l’elaborazione: {}", crash::message(&*panic)))
-            });
-            let cancelled = state.processing_cancel.load(std::sync::atomic::Ordering::SeqCst);
-            if cancelled {
-                let _ = db::status(&state.db.guard(), &id, "failed", None, Some("Elaborazione interrotta. Puoi riprovare dalla call."));
-            } else if let Err(e) = result {
-                let _ = db::status(&state.db.guard(), &id, "failed", None, Some(&e));
-                let _ = app.emit("app-error", e);
-            } else {
-                notifications::completed(&app, &state, &id);
-                sharing::auto_publish(&app, &state, &id);
-            }
-            let _ = app.emit("calls-changed", ());
-          }
-        });
-    }
+    archive_changed(app, Some(&id));
     Ok(())
 }
 fn start_live(
@@ -1126,7 +1019,7 @@ fn reset_chat(app: tauri::AppHandle, state: State<Shared>, id: String) -> Result
     sharing::hydrate_shared_detail(state.inner(), &mut detail)?;
     state.gemini_auth.discard_call(&id);
     let _ = app.emit("chat-reset", serde_json::json!({"id":id}));
-    let _ = app.emit("calls-changed", ());
+    detail_changed(&app, &id);
     Ok(detail)
 }
 #[tauri::command]
@@ -1169,44 +1062,16 @@ fn retry_processing(app: tauri::AppHandle, state: State<Shared>, id: String) -> 
     if !["failed", "pending"].contains(&detail.call.status.as_str()) {
         return Err("Questa call non richiede una nuova elaborazione.".into());
     }
-    begin_processing(&app, state.inner(), &id)?;
+    processing::enqueue(&app, state.inner(), &id)?;
     changed(&app, &state);
-    Ok(())
-}
-#[tauri::command]
-fn cancel_processing(app: tauri::AppHandle, state: State<Shared>, id: String) -> Result<()> {
-    let _guard = state.operation.guard();
-    let detail = db::detail(&state.db.guard(), &id)?;
-    if !["pending", "processing"].contains(&detail.call.status.as_str()) {
-        return Err("L’elaborazione di questa call è già terminata.".into());
-    }
-    let mut status = state.status.guard();
-    if status.queued.iter().any(|queued| queued == &id) {
-        state.queue.guard().retain(|(queued, _)| queued != &id);
-        status.queued.retain(|queued| queued != &id);
-        if status.processing.as_deref() == Some(id.as_str()) {
-            status.processing = None;
-            status.stage.clear();
-        }
-        drop(status);
-        db::status(&state.db.guard(), &id, "failed", None, Some("Elaborazione interrotta. Puoi riprovare dalla call."))?;
-    } else if status.processing.as_deref() == Some(id.as_str()) {
-        if !state.processing_cancel.swap(true, std::sync::atomic::Ordering::SeqCst) {
-            status.stage = "Interruzione dell’elaborazione…".into();
-        }
-        drop(status);
-        if let Some(child) = state.final_process.guard().clone() { child.cancel(); }
-    } else {
-        return Err("Questa call non è più in elaborazione.".into());
-    }
-    drop(_guard);
-    changed(&app, &state);
+    archive_changed(&app, Some(&id));
     Ok(())
 }
 #[tauri::command]
 fn set_call_tags(app: tauri::AppHandle, state: State<Shared>, id: String, tags: Vec<String>) -> Result<()> {
     db::set_tags(&mut state.db.guard(), &id, tags)?;
-    let _ = app.emit("calls-changed", ());
+    archive_changed(&app, Some(&id));
+    let _ = app.emit("archive-tags-changed", ());
     Ok(())
 }
 #[tauri::command]
@@ -1220,8 +1085,8 @@ fn rename_call(
         return Err("Titolo consentito: da 1 a 200 caratteri.".into());
     }
     db::rename(&mut state.db.guard(), &id, title.trim())?;
+    archive_changed(&app, Some(&id));
     sharing::schedule_title_sync(&app, state.inner(), Some(id));
-    let _ = app.emit("calls-changed", ());
     Ok(())
 }
 #[tauri::command]
@@ -1239,7 +1104,8 @@ fn delete_call(app: tauri::AppHandle, state: State<Shared>, id: String) -> Resul
     remove_audio(&state, &id)?;
     screen::remove(&state,&id)?;
     db::delete(&mut state.db.guard(), &id)?;
-    changed(&app, &state);
+    archive_changed(&app, Some(&id));
+    let _ = app.emit("archive-tags-changed", ());
     Ok(())
 }
 #[tauri::command]
@@ -1259,9 +1125,7 @@ async fn save_markdown(app: tauri::AppHandle, window: tauri::WebviewWindow, stat
 }
 #[tauri::command]
 fn cleanup(app: tauri::AppHandle, state: State<Shared>) -> Result<usize> {
-    let n = cleanup_archive(&app, state.inner())?;
-    changed(&app, &state);
-    Ok(n)
+    cleanup_archive(&app, state.inner())
 }
 #[tauri::command]
 async fn chat(
@@ -1307,6 +1171,7 @@ async fn chat(
         s.chat_call = None;
     }
     changed(&app, &state);
+    detail_changed(&app, &chat_id);
     if notify {
         tauri::async_runtime::spawn_blocking(move || notifications::chat_completed(&app, &state, &chat_id));
     }
@@ -1429,7 +1294,7 @@ fn main() {
             crash::set_folder(&root);
             std::fs::create_dir_all(root.join("temporary"))?;
             if std::env::var_os("CALLNOTES_ENGINE_DIR").is_none() { std::env::set_var("CALLNOTES_ENGINE_DIR",root.join("engine")); }
-            let state=Arc::new(AppState{db:Mutex::new(db::open(&root.join("archive.sqlite")).map_err(std::io::Error::other)?),status:Mutex::new(Status::default()),recorder:Mutex::new(None),operation:Mutex::new(()),data_dir:root,queue:Mutex::new(Default::default()),engine:Mutex::new(None),live_engine:Mutex::new(None),live_process:Mutex::new(None),final_process:Mutex::new(None),processing_cancel:Default::default(),auth:auth::AuthManager::default(),codex_auth:codex::AuthManager::default(),gemini_auth:Default::default(),catalog:Mutex::new(None),chat_control:connectors::ChatControl::default(),shortcut_capture:Default::default(),provision:Default::default()});
+            let state=Arc::new(AppState{db:Mutex::new(db::open(&root.join("archive.sqlite")).map_err(std::io::Error::other)?),status:Mutex::new(Status::default()),recorder:Mutex::new(None),operation:Mutex::new(()),data_dir:root,processing: Default::default(),engine:Mutex::new(None),live_engine:Mutex::new(None),live_process:Mutex::new(None),auth:auth::AuthManager::default(),codex_auth:codex::AuthManager::default(),gemini_auth:Default::default(),catalog:Mutex::new(None),chat_control:connectors::ChatControl::default(),shortcut_capture:Default::default(),provision:Default::default()});
             std::fs::write(state.data_dir.join("worker.py"),include_str!("../../engine/worker.py"))?;
             std::fs::write(state.data_dir.join("import_media.py"),include_str!("../../engine/import_media.py"))?;
             std::fs::write(state.data_dir.join("video.py"),include_str!("../../engine/video.py"))?;
@@ -1479,7 +1344,7 @@ fn main() {
                     "quit" => {
                         let state = app.state::<Shared>();
                         let status = state.status.guard().clone();
-                        if status.capture.is_some() || status.processing.is_some() {
+                        if status.capture.is_some() || status.processing.is_some() || !status.queued.is_empty() {
                             let _ = app.emit("app-error", tr("Termina la registrazione e attendi l’elaborazione prima di uscire.", "Stop recording and wait for processing to finish before quitting."));
                             if let Some(window) = app.get_webview_window("main") { let _ = window.show(); }
                         } else {
@@ -1490,14 +1355,14 @@ fn main() {
                 }).build(app)?;
             if let Err(e)=cleanup_archive(app.handle(),&state){eprintln!("Pulizia archivio: {e}");}
             let handle=app.handle().clone();let periodic=state.clone();
-            std::thread::spawn(move||loop{std::thread::sleep(Duration::from_secs(3600));match cleanup_archive(&handle,&periodic){Ok(n) if n>0=>changed(&handle,&periodic),Err(e)=>{let _=handle.emit("app-error",e);},_=>{}}});
+            std::thread::spawn(move||loop{std::thread::sleep(Duration::from_secs(3600));match cleanup_archive(&handle,&periodic){Err(e)=>{let _=handle.emit("app-error",e);},_=>{}}});
             if let Some(window)=app.get_webview_window("main"){let _=window.show();}
             if let Err(error)=ensure_engine(app.handle(), &state){state.provision.0.guard().error=Some(error);}
             telegram::start(app.handle().clone(), state);
             Ok(())
         })
         .on_window_event(|window,event|{if let tauri::WindowEvent::CloseRequested{api,..}=event{api.prevent_close();if window.label()=="screenshot-area"{let app=window.app_handle().clone();let state=app.state::<Shared>().inner().clone();tauri::async_runtime::spawn_blocking(move||{if let Err(error)=screen::cancel_selection(&app,&state){let _=app.emit("app-error",error);}});}else if window.label()=="video-area"{let _=video::video_cancel_selection(window.app_handle().clone());}else if window.label()=="recorder"{let _=show_recorder(window.app_handle(),false);}else{let _=window.hide();}}})
-        .invoke_handler(tauri::generate_handler![custom_endpoint::custom_endpoint_key,custom_endpoint::open_endpoint_guide,custom_endpoint::test_custom_endpoint,sharing::sharing_pick_folder,sharing::sharing_webhook,sharing::publish_transcript,sharing::publication_status,sharing::list_shared_transcripts,sharing::get_shared_transcript,sharing::open_shared_assistant,locale::ui_language,process::ollama_context_estimate,qwen_tts::qwen_tts_status,qwen_tts::qwen_tts_prepare,ollama::ollama_download,ollama::ollama_models,ollama::ollama_model_context,piper::piper_status,piper::piper_download,kokoro::kokoro_status,kokoro::kokoro_download,tts::tts_catalog,stt::stt_key_status,stt::stt_save_key,stt::stt_delete_key,tts::tts_key_status,tts::tts_save_key,tts::tts_delete_key,import_media::import_media,telegram::telegram_status,telegram::telegram_connect,telegram::telegram_disconnect,mac_permissions::reset_capture_permissions,audio_outputs,set_call_tags,video::prepare_call_video,video::video_drawing,video::video_monitors,video::video_select_monitor,video::video_cancel_selection,video::video_start_selection,video::video_hint_ready,video::open_call_video,chat_files::save_generated,chat_files::reveal_generated,sources::chat_sources,sources::add_chat_sources,sources::set_chat_source,sources::remove_chat_source,sources::reveal_chat_source,sources::reveal_chat_file,updates::update_status,updates::check_update,updates::install_update,call_notes::open_call_note,call_notes::get_call_note,call_notes::save_call_note,call_notes::cancel_call_note,drawing_interaction::set_drawing_interaction,screen_dock::dock_recorder,screen_dock::recorder_dock_status,screen_dock::recorder_frame_ready,screen::toggle_drawing,screen::drawing_frame,screen::capture_screenshot,screen::screenshot_monitors,screen::screenshot_select_monitor,screen::screenshot_cancel_selection,screen::screenshot_finish_selection,screen::screenshot_image,screen::set_brush,list_calls,list_tags,get_call,prepare_call_audio,open_call_audio,get_settings,get_status,get_health,save_settings,start_recording,stop_recording,retry_processing,cancel_processing,rename_call,delete_call,export_markdown,save_markdown,cleanup,chat,recorder_size,claude_auth_status,claude_login,claude_login_code,claude_login_cancel,claude_login_browser,set_chat_model,set_assistant_provider,claude_models,claude_connectors,claude_connectors_browser,set_connector_enabled,test_notification,chat_permission,chat_permission_answer,chat_progress,revoke_tool_trust,chat_cancel,reset_chat,set_theme,shortcut_capture,engine_setup,engine_setup_status])
+        .invoke_handler(tauri::generate_handler![custom_endpoint::custom_endpoint_key,custom_endpoint::open_endpoint_guide,custom_endpoint::test_custom_endpoint,sharing::sharing_pick_folder,sharing::sharing_webhook,sharing::publish_transcript,sharing::publication_status,sharing::list_shared_transcripts,sharing::get_shared_transcript,sharing::open_shared_assistant,locale::ui_language,process::ollama_context_estimate,qwen_tts::qwen_tts_status,qwen_tts::qwen_tts_prepare,ollama::ollama_download,ollama::ollama_models,ollama::ollama_model_context,piper::piper_status,piper::piper_download,kokoro::kokoro_status,kokoro::kokoro_download,tts::tts_catalog,stt::stt_key_status,stt::stt_save_key,stt::stt_delete_key,tts::tts_key_status,tts::tts_save_key,tts::tts_delete_key,import_media::import_media,telegram::telegram_status,telegram::telegram_connect,telegram::telegram_disconnect,mac_permissions::reset_capture_permissions,audio_outputs,set_call_tags,video::prepare_call_video,video::video_drawing,video::video_monitors,video::video_select_monitor,video::video_cancel_selection,video::video_start_selection,video::video_hint_ready,video::open_call_video,chat_files::save_generated,chat_files::reveal_generated,sources::chat_sources,sources::add_chat_sources,sources::set_chat_source,sources::remove_chat_source,sources::reveal_chat_source,sources::reveal_chat_file,updates::update_status,updates::check_update,updates::install_update,call_notes::open_call_note,call_notes::get_call_note,call_notes::save_call_note,call_notes::cancel_call_note,drawing_interaction::set_drawing_interaction,screen_dock::dock_recorder,screen_dock::recorder_dock_status,screen_dock::recorder_frame_ready,screen::toggle_drawing,screen::drawing_frame,screen::capture_screenshot,screen::screenshot_monitors,screen::screenshot_select_monitor,screen::screenshot_cancel_selection,screen::screenshot_finish_selection,screen::screenshot_image,screen::set_brush,list_calls,list_tags,get_call,prepare_call_audio,open_call_audio,get_settings,get_status,get_health,save_settings,start_recording,stop_recording,retry_processing,processing::cancel_processing,rename_call,delete_call,export_markdown,save_markdown,cleanup,chat,recorder_size,claude_auth_status,claude_login,claude_login_code,claude_login_cancel,claude_login_browser,set_chat_model,set_assistant_provider,claude_models,claude_connectors,claude_connectors_browser,set_connector_enabled,test_notification,chat_permission,chat_permission_answer,chat_progress,revoke_tool_trust,chat_cancel,reset_chat,set_theme,shortcut_capture,engine_setup,engine_setup_status])
         .build(tauri::generate_context!()).expect("Impossibile avviare PARLO").run(|app,event|{if matches!(event,tauri::RunEvent::Exit){let state=app.state::<Shared>();state.auth.cancel();state.codex_auth.cancel();state.gemini_auth.cancel();state.engine.guard().take();state.live_engine.guard().take();}});
 }
 
@@ -1508,23 +1373,34 @@ mod lifecycle_tests {
     fn retained_audio_survives_restart_but_follows_call_expiry_and_deletion() {
         let root=std::env::temp_dir().join(format!("parlo-retained-audio-{}",uuid::Uuid::new_v4()));
         std::fs::create_dir_all(root.join("temporary")).unwrap();
-        let state=AppState{db:Mutex::new(db::open(&root.join("archive.sqlite")).unwrap()),status:Mutex::new(Status::default()),recorder:Mutex::new(None),operation:Mutex::new(()),data_dir:root.clone(),queue:Mutex::new(Default::default()),engine:Mutex::new(None),live_engine:Mutex::new(None),live_process:Mutex::new(None),final_process:Mutex::new(None),processing_cancel:Default::default(),chat_control:Default::default(),shortcut_capture:Default::default(),provision:Default::default(),auth:Default::default(),codex_auth:Default::default(),gemini_auth:Default::default(),catalog:Mutex::new(None)};
+        let state=AppState{db:Mutex::new(db::open(&root.join("archive.sqlite")).unwrap()),status:Mutex::new(Status::default()),recorder:Mutex::new(None),operation:Mutex::new(()),data_dir:root.clone(),processing: Default::default(),engine:Mutex::new(None),live_engine:Mutex::new(None),live_process:Mutex::new(None),chat_control:Default::default(),shortcut_capture:Default::default(),provision:Default::default(),auth:Default::default(),codex_auth:Default::default(),gemini_auth:Default::default(),catalog:Mutex::new(None)};
         let retained=uuid::Uuid::new_v4().to_string();let discarded=uuid::Uuid::new_v4().to_string();let expired=uuid::Uuid::new_v4().to_string();
         for (id,keep,date) in [(&retained,true,chrono::Utc::now().to_rfc3339()),(&discarded,false,chrono::Utc::now().to_rfc3339()),(&expired,true,"2020-01-01T00:00:00+00:00".into())] {
             db::create(&state.db.guard(),id,"Synthetic test",&date).unwrap();
             db::status(&state.db.guard(),id,"finalizing",None,None).unwrap();
-            let dir=temp_dir(&state,id).unwrap();std::fs::create_dir_all(&dir).unwrap();std::fs::write(dir.join("system.wav"),b"synthetic audio").unwrap();
+            let dir = temp_dir(&state, id).unwrap();
+            std::fs::create_dir_all(&dir).unwrap();
+            let spec = hound::WavSpec {
+                channels: 1, sample_rate: 16000, bits_per_sample: 16, sample_format: hound::SampleFormat::Int,
+            };
+            let mut writer = hound::WavWriter::create(dir.join("system.wav"), spec).unwrap();
+            writer.write_sample(1234i16).unwrap();
+            writer.finalize().unwrap();
             if keep {std::fs::write(dir.join("keep-audio"),b"").unwrap();}
         }
         // Global default remains off: recovery must use each recording's marker.
         assert!(!db::get_settings(&state.db.guard()).unwrap().keep_audio);
         recover_finalized_calls(&state).unwrap();
-        assert!(retained_audio_directory(&state,&retained).unwrap().unwrap().join("system.wav").is_file());
+        let retained_dir = retained_audio_directory(&state, &retained).unwrap().unwrap();
+        let mut reader = hound::WavReader::open(retained_dir.join("registrazione.wav")).unwrap();
+        assert_eq!(reader.samples::<i16>().next().unwrap().unwrap(), 1234);
+        drop(reader);
+        assert!(!retained_dir.join("system.wav").exists());
         assert_eq!(db::detail(&state.db.guard(),&retained).unwrap().call.status,"ready");
         assert!(!temp_dir(&state,&discarded).unwrap().exists());
         assert!(retained_audio_directory(&state,&discarded).unwrap().is_none());
         recover_finalized_calls(&state).unwrap();
-        assert!(temp_dir(&state,&retained).unwrap().join("system.wav").is_file());
+        assert!(retained_dir.join("registrazione.wav").is_file());
         assert_eq!(cleanup_core(&state).unwrap(),1);
         assert!(!temp_dir(&state,&expired).unwrap().exists());
         assert!(temp_dir(&state,&retained).unwrap().exists());
@@ -1581,8 +1457,8 @@ mod lifecycle_tests {
         assert!(ready, "Crash fixture never committed its baseline");
         let state = AppState {
             db:Mutex::new(db::open(&root.join("archive.sqlite")).unwrap()), status:Mutex::new(Status::default()),
-            recorder:Mutex::new(None), operation:Mutex::new(()), data_dir:root.clone(), queue:Mutex::new(Default::default()),
-            engine:Mutex::new(None),live_engine:Mutex::new(None),live_process:Mutex::new(None),final_process:Mutex::new(None),processing_cancel:Default::default(),chat_control:connectors::ChatControl::default(),
+            recorder:Mutex::new(None), operation:Mutex::new(()), data_dir:root.clone(), processing: Default::default(),
+            engine:Mutex::new(None),live_engine:Mutex::new(None),live_process:Mutex::new(None),chat_control:connectors::ChatControl::default(),
             shortcut_capture:Default::default(),provision:Default::default(),auth:auth::AuthManager::default(),codex_auth:codex::AuthManager::default(),gemini_auth:Default::default(),catalog:Mutex::new(None),
         };
         {
@@ -1606,50 +1482,6 @@ mod lifecycle_tests {
         assert!(root.starts_with(std::env::temp_dir())); std::fs::remove_dir_all(root).unwrap();
     }
     #[test]
-    fn queued_calls_keep_their_settings_and_do_not_block_a_new_capture() {
-        let state = AppState {
-            db: Mutex::new(db::open(std::path::Path::new(":memory:")).unwrap()),
-            status: Mutex::new(Status::default()),
-            recorder: Mutex::new(None),
-            operation: Mutex::new(()),
-            data_dir: std::env::temp_dir(),
-            queue: Mutex::new(Default::default()),
-            engine: Mutex::new(None),
-            live_engine: Mutex::new(None),
-            live_process: Mutex::new(None),
-            final_process: Mutex::new(None),
-            processing_cancel: Default::default(),
-            chat_control: connectors::ChatControl::default(),
-            shortcut_capture: Default::default(),
-            provision: Default::default(),
-            auth: auth::AuthManager::default(),
-            codex_auth: codex::AuthManager::default(),gemini_auth:Default::default(),
-            catalog: Mutex::new(None),
-        };
-        let first = Settings::default();
-        let mut second = first.clone();
-        second.language = "en".into();
-        assert!(enqueue_job(&state, "first", first.clone()).unwrap());
-        assert!(!enqueue_job(&state, "second", second).unwrap());
-        assert!(enqueue_job(&state, "first", first).is_err());
-        assert_eq!(next_job(&state).unwrap().0, "first");
-        // Starting another capture must not consume, cancel, or reorder transcription jobs.
-        state.status.guard().capture = Some(Capture {
-            id: "new-call".into(),
-            started_at: chrono::Utc::now().to_rfc3339(),
-            microphone: true,
-            system_audio: true,
-        });
-        let (id, settings) = next_job(&state).unwrap();
-        assert_eq!(id, "second");
-        assert_eq!(settings.language, "en");
-        assert!(next_job(&state).is_none());
-        let status = state.status.guard();
-        assert_eq!(status.capture.as_ref().unwrap().id, "new-call");
-        assert!(status.processing.is_none());
-        assert!(status.queued.is_empty());
-    }
-    #[test]
     fn removes_expired_audio_and_chat_without_touching_recent_calls() {
         let root = std::env::temp_dir().join(format!("callnotes-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(root.join("temporary")).unwrap();
@@ -1659,12 +1491,10 @@ mod lifecycle_tests {
             recorder: Mutex::new(None),
             operation: Mutex::new(()),
             data_dir: root.clone(),
-            queue: Mutex::new(Default::default()),
+            processing: Default::default(),
             engine: Mutex::new(None),
             live_engine: Mutex::new(None),
             live_process: Mutex::new(None),
-            final_process: Mutex::new(None),
-            processing_cancel: Default::default(),
             chat_control: connectors::ChatControl::default(),
             shortcut_capture: Default::default(),
             provision: Default::default(),

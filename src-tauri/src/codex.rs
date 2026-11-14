@@ -606,7 +606,7 @@ pub fn chat(
     let turn=rpc.call("turn/start",json!({"threadId":thread_id,"input":[{"type":"text","text":context,"text_elements":[]}],"summary":"auto"}))?;
     let turn_id=turn["turn"]["id"].as_str().ok_or("Codex non ha creato il turno")?.to_owned();
     db::append_message(&state.db.guard(), id, "user", prompt.trim())?;
-    let _ = app.emit("calls-changed", ());
+    crate::detail_changed(app, id);
     let deadline = Instant::now() + Duration::from_secs(600);
     let mut items = HashMap::<String, Value>::new();
     loop {

@@ -1,148 +1,81 @@
 # Compilare PARLO
 
-Per modificare il codice e provarlo sul proprio computer. Non servono account
-GitHub di pubblicazione, certificati commerciali o la chiave degli aggiornamenti
-del progetto. Ogni sistema compila la propria app: Windows x64, Mac Apple Silicon
-oppure Mac Intel. Linux e Windows ARM non sono supportati da questi script.
-
-L'interfaccia usa React/TypeScript e Vite; il backend usa Tauri 2/Rust, SQLite
-e un runtime Python privato per trascrizione, documenti e media.
-
-## Windows x64
-
-Installa i [prerequisiti Tauri](https://v2.tauri.app/start/prerequisites/):
-
-- Git e Node.js 22 con npm.
-- Rust stable con toolchain MSVC, tramite [rustup](https://rustup.rs/).
-- Visual Studio Build Tools 2022 con **Sviluppo desktop con C++** e Windows SDK.
-- WebView2 Runtime, se non gia presente nel sistema.
-- Python 3.12 a 64 bit, disponibile come `python` nel terminale.
-
-Apri PowerShell nella copia del progetto. La prima volta prepara le dipendenze:
-
-```powershell
-npm.cmd ci
-python scripts/bundle_python.py --platform win-x64
-python scripts/prepare-runtime.py --platform win-x64
-python scripts/prepare-runtime.py --platform win-x64 --kind documents
-```
-
-Questi comandi scaricano Python e i pacchetti nelle cartelle del progetto.
-Non scaricano i modelli di trascrizione o voce. La prima preparazione richiede
-Internet e spazio per i runtime; va ripetuta quando cambiano i rispettivi lockfile
-o il manifest Python. Attendi che ogni comando termini senza errori.
-
-Avvia l'app con ricaricamento dell'interfaccia:
-
-```powershell
-npm.cmd run desktop
-```
-
-Lo script usa Rust installato nel sistema, oppure quello privato in `.tools`
-se disponibile. Impostazioni e dati di questa sessione restano in `.local-data`,
-il motore in `.tools/engine`; queste cartelle sono escluse da Git.
-
-Per compilare un eseguibile debug senza installer:
-
-```powershell
-npm.cmd run desktop:build
-```
-
-Output: `src-tauri/target/debug/callnotes.exe`. Per eseguirlo mantenendo separati
-i dati di sviluppo, nella stessa PowerShell:
-
-```powershell
-$env:CALLNOTES_DATA_DIR = Join-Path $PWD '.local-data'
-$env:CALLNOTES_ENGINE_DIR = Join-Path $PWD '.tools/engine'
-& .\src-tauri\target\debug\callnotes.exe
-```
-
-Per una prima prova della trascrizione puoi scegliere **CPU** nelle impostazioni.
-Il runtime GPU Vulkan richiede una preparazione aggiuntiva: Vulkan SDK, CMake
-e i sorgenti [whisper.cpp v1.8.3](https://github.com/ggml-org/whisper.cpp/tree/v1.8.3)
-in `.tools/whisper.cpp-1.8.3`, poi
-`powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-whisper-cpp.ps1 -VulkanSdk "PERCORSO_SDK"`.
-Non serve il Vulkan SDK sui computer che eseguono un pacchetto gia completo.
+Apri il terminale nella cartella del progetto. Prepara le dipendenze una volta,
+poi rilancia solo il comando di build quando cambi il codice.
 
 ## Mac Apple Silicon o Intel
 
-Serve macOS 13 o successivo. Installa Git, Node.js 22 con npm, Rust stable,
-Python 3.12 disponibile come `python3`, CMake e gli strumenti Apple:
+Serve macOS 13 o successivo e una copia della cartella del progetto sul Mac.
+
+1. Apri **Terminale**.
+2. Scrivi `cd `, con uno spazio dopo `cd`. Trascina nel Terminale la cartella
+   del progetto che contiene `scripts`, poi premi Invio.
+3. Copia questo comando, premi Invio e attendi che finisca:
 
 ```sh
-xcode-select --install
+bash scripts/mac-test.command --deps
 ```
 
-Nel Terminale, dalla copia del progetto:
+Prepara Node, Python, Rust e CMake nella cartella del progetto. Se macOS chiede
+di installare gli strumenti Apple, conferma. Al termine dell’installazione
+Apple, ripeti il comando e attendi il messaggio «Dipendenze pronte».
+
+4. Copia questo comando e premi Invio. La prima compilazione scarica altri
+   componenti e può richiedere diversi minuti:
 
 ```sh
-npm ci
-python3 scripts/build-mac.py --test
+bash scripts/mac-test.command --build
 ```
 
-Lo script prepara Python e i due runtime, compila whisper.cpp con Metal e crea
-una `.app` debug per l'architettura del Mac in uso. Output:
-`src-tauri/target/debug/bundle/macos/PARLO.app`.
-Non genera un DMG, non pubblica nulla e non richiede la chiave dell'updater.
-La firma ad hoc viene applicata localmente; non e una notarizzazione Apple.
+5. Al termine, nel Finder apri la cartella del progetto e vai in
+   `src-tauri → target → debug → bundle → macos`. Apri **PARLO.app**.
+   Dopo modifiche al codice, ripeti il comando del punto 4.
 
-Per aprirla con dati di sviluppo separati:
+Per i permessi audio, vedi [PARLO su Mac](MACOS.md#primo-avvio).
 
-```sh
-export CALLNOTES_DATA_DIR="$PWD/.local-data"
-export CALLNOTES_ENGINE_DIR="$PWD/.tools/engine"
-"src-tauri/target/debug/bundle/macos/PARLO.app/Contents/MacOS/callnotes"
+## Windows x64
+
+Servono Git, Node 22, Rust stable con toolchain MSVC, WebView2 e
+Visual Studio Build Tools con **Sviluppo desktop con C++** e Windows SDK.
+[Prerequisiti Tauri](https://v2.tauri.app/start/prerequisites/)
+
+In PowerShell:
+
+```powershell
+npm.cmd run desktop:deps
+npm.cmd run desktop:build
 ```
 
-Per modificare l'interfaccia con ricaricamento, dopo la preparazione precedente,
-avvia invece dalla stessa shell:
+Il primo comando prepara le dipendenze npm e il runtime Python privato.
+Il secondo crea `src-tauri/target/debug/callnotes.exe`. Per avviarlo con i
+dati di sviluppo, usa `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run.ps1`.
+Per lavorare con ricaricamento automatico usa `npm.cmd run desktop`.
 
-```sh
-npm run tauri -- dev --config src-tauri/tauri.macos.conf.json
-```
-
-`npm run desktop` e lo script Windows: su Mac usa il comando qui sopra.
-Per la cattura concedi Microfono e Registrazione schermo nelle impostazioni
-di privacy di macOS. Dettagli e limiti del collaudo in [MACOS.md](MACOS.md).
-Le istruzioni non equivalgono a una verifica su hardware Mac fisico.
+Se ti serve compilare anche il runtime GPU Vulkan, usa
+`scripts/build-whisper-cpp.ps1 -VulkanSdk PERCORSO_SDK` con Vulkan SDK, CMake
+e i sorgenti whisper.cpp 1.8.3 in `.tools/whisper.cpp-1.8.3`.
 
 ## Creare un installer per il proprio fork
 
-Compila sulla piattaforma a cui è destinato l’installer, dopo aver installato i
-prerequisiti sopra ed eseguito `npm ci` (`npm.cmd ci` su Windows). Per tenere il
-fork separato dall’app ufficiale, scegli un tuo `productName` e un tuo `identifier`
-in `src-tauri/tauri.conf.json` prima di compilare.
+- **Windows** — `npm.cmd run desktop:installer`. Il setup è in
+  `src-tauri/target/release/bundle/nsis`. Per preparare i pacchetti serve
+  anche Python 3.12 a 64 bit.
+- **Mac** — dopo la preparazione delle dipendenze, usa
+  `bash scripts/mac-test.command --installer`. Il DMG è in
+  `src-tauri/target/release/bundle/dmg`. La firma ad hoc è per uso locale.
+  Per distribuire con Developer ID usa `scripts/build-mac.py` con la tua
+  identità di firma e la configurazione di notarizzazione.
 
-- **Windows x64** — `npm.cmd run desktop:installer` crea il setup `.exe` in
-  `src-tauri/target/release/bundle/nsis`. Lo script prepara i runtime inclusi.
-  L’installer risultante si apre come un normale setup Windows.
-- **macOS** — `python3 scripts/build-mac.py --adhoc` crea `.app` e `.dmg` in
-  `src-tauri/target/release/bundle`. Apri il DMG e copia l’app in Applicazioni.
-  La firma ad hoc è adatta a prove locali. Per la distribuzione con Developer ID,
-  configura la tua identità di firma Apple e usa `python3 scripts/build-mac.py`.
+Per installare un fork accanto a PARLO, assegna un nome e un identificatore
+distinti in `src-tauri/tauri.conf.json`. Per gli aggiornamenti del fork configura
+la tua chiave e il tuo feed e passa `-UpdaterConfig` a `scripts/build.ps1` o
+`--updater-config` a `scripts/build-mac.py`. [Guida updater di Tauri](https://v2.tauri.app/plugin/updater/)
 
-Il controllo degli aggiornamenti è spento nelle build locali. Per distribuire
-aggiornamenti dal tuo fork, prepara un JSON con `pubkey` ed `endpoints`, imposta
-`TAURI_SIGNING_PRIVATE_KEY` con la tua chiave e passa `-UpdaterConfig PERCORSO`
-a `scripts/build.ps1 -Installer` su Windows o `--updater-config PERCORSO` a
-`scripts/build-mac.py` su Mac. Il formato del feed e le firme sono descritti nella
-[guida updater di Tauri](https://v2.tauri.app/plugin/updater/).
+## Primo utilizzo
 
-## Primo utilizzo e problemi comuni
-
-- Trascrizione locale: l'app scarica il modello scelto quando lo prepari;
-  il modello non fa parte del clone. Groq e una scelta cloud separata.
-- Chat: Claude Code e Codex richiedono il proprio accesso quando usati con
-  i servizi cloud. Ollama e opzionale e usa anche la CLI Claude Code per gli
-  strumenti. Vedi [USO.md](USO.md).
-- Se compare **il pacchetto non contiene il motore pronto**, completa la
-  preparazione dei runtime indicata per il sistema; installare solo una venv
-  Python non prepara i manifest richiesti dall'app.
-- Se mancano `cargo`, `npm`, `python`/`python3`, o il linker MSVC, completa
-  i prerequisiti e riapri il terminale.
-- `npm run dev` da solo mostra l'interfaccia nel browser: non avvia cattura,
-  database e altri comandi nativi. Usa l'avvio Tauri per provare il prodotto.
-- Le build debug hanno il controllo degli aggiornamenti spento.
+Prepara il modello dal pannello **Impostazioni → Registrazione**. Puoi iniziare
+con CPU oppure configurare un servizio di trascrizione. Per usare l’assistente
+scegli un fornitore in **Impostazioni → Assistente**. [Guida all’uso](USO.md)
 
 ## Contribuire e controllare le modifiche
 
@@ -160,6 +93,65 @@ npx tsc --noEmit
 Per modifiche Python esegui i test unitari del modulo interessato; per Rust
 usa i test mirati da `src-tauri`. Compilare l'app, creare un installer e
 pubblicare una release sono operazioni distinte.
+
+### Collaudi eseguiti
+
+Le prove usano dati di esempio e passaggi fissi. Le misure di durata dipendono
+dal PC. Il profiling riguarda solo le prestazioni, come lo scroll dell’archivio.
+
+- **App Windows — `scripts/desktop-qa.cjs`.** Apre PARLO in WebView2 con 480 call
+  sintetiche. Carica e scorre 460 righe, cerca una call fuori dalle pagine già
+  caricate e verifica che la sidebar monti solo le righe vicine a quelle visibili.
+  Registra un campione pubblico dall’audio di sistema, annulla l’elaborazione e
+  preme «Riprova» fino a ottenere la trascrizione. Verifica anche che un file
+  condiviso cambi mentre è aperto e che la chat riceva una risposta in streaming.
+  Il server HTTP di test è avviato dallo script e controlla se la trascrizione
+  entra nella richiesta prima e dopo averla esclusa dalle fonti.
+- **Audio Windows e Whisper.** `scripts/audio-input-check.ps1` controlla il
+  microfono predefinito. Il test Rust `default_devices_deliver_wasapi_packets`
+  conta i campioni del microfono e verifica un tono di 997 Hz nell’audio di
+  sistema. Va avviato esplicitamente con `--ignored` mentre il tono è in
+  riproduzione. `scripts/benchmark-engine.py --minutes 0.75` usa il runtime Python
+  del progetto per trascrivere 45 secondi di parlato pubblico con eco sintetico.
+  Richiede il modello locale e il campione `.tools/engine/benchmark.wav`.
+- **Test di comportamento.** I test Rust in `db.rs`, `processing.rs`, `main.rs`,
+  `sharing.rs`, `audio.rs`, `audio_windows.rs`, `engine_child.rs` e `video.rs`
+  verificano ricerca e paginazione, coda e annullamento, ripristino e scadenza,
+  condivisione, gestione delle interruzioni audio e selezione video.
+  I test Python `test_worker`, `test_mixing`, `test_final` e
+  `test_transcript_quality` verificano mix, eco, pipeline e qualità del testo.
+  Con `node --test` si possono eseguire i file `scripts/test-archive-dates.mjs`,
+  `test-transcript-navigation.mjs`, `test-annotations.mjs` e
+  `test-source-mentions.mjs` per filtri, navigazione, disegno e fonti della chat.
+
+È stato fatto anche un confronto in Edge headless con backend simulato su 500
+call locali e 500 condivise. Il collaudo nel repository da usare per lo scroll
+della finestra desktop è `scripts/desktop-qa.cjs`.
+
+Per ripetere il collaudo desktop servono **Windows con WebView2, Node 22.13 o
+successivo, dipendenze npm, runtime Whisper locale con modello e campione WAV,
+e un’uscita audio predefinita**. Dalla radice del progetto, in PowerShell:
+
+```powershell
+$env:TAURI_CONFIG = '{"identifier":"app.parlo.desktop.qa","plugins":{"updater":null}}'
+cargo build --manifest-path src-tauri/Cargo.toml --bin callnotes
+Remove-Item Env:TAURI_CONFIG
+node scripts/desktop-qa.cjs
+```
+
+Il campione `.tools/engine/benchmark.wav` è `samples/jfk.wav` di whisper.cpp
+v1.8.3. Lo prepara la configurazione dell’accelerazione. Se manca, puoi
+scaricarlo con lo stesso indirizzo usato da `scripts/setup-accelerator.py`:
+
+```powershell
+Invoke-WebRequest 'https://raw.githubusercontent.com/ggml-org/whisper.cpp/v1.8.3/samples/jfk.wav' -OutFile .tools/engine/benchmark.wav
+```
+
+Lo script avvia il server di sviluppo e usa un archivio temporaneo. Il server
+HTTP di test risponde sullo stesso PC e non richiede account, credenziali o un
+endpoint AI esterno. `--recording-only` esegue solo registrazione, annullamento
+e riprova. `--chat-only` prova solo la cartella condivisa e la chat, senza
+usare il modello Whisper o riprodurre audio.
 
 Per ridistribuire il pacchetto consulta le
 [licenze dei componenti](THIRD_PARTY_NOTICES.md).

@@ -13,19 +13,36 @@ export const statusLabel = (status: string) => statusLabels[status] || status;
 export const fmtTime = (ms: number) =>
   `${Math.floor(ms / 60000).toString().padStart(2, "0")}:${Math.floor((ms / 1000) % 60).toString().padStart(2, "0")}`;
 
-export const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleDateString(uiLocale, { day: "numeric", month: "short", year: "numeric" });
+let dateFormatters: { locale: string; date: Intl.DateTimeFormat; clock: Intl.DateTimeFormat; day: Intl.DateTimeFormat } | undefined;
 
-export const fmtClock = (iso: string) =>
-  new Date(iso).toLocaleTimeString(uiLocale, { hour: "2-digit", minute: "2-digit" });
+function formatters() {
+  if (dateFormatters?.locale !== uiLocale) {
+    dateFormatters = {
+      locale: uiLocale,
+      date: new Intl.DateTimeFormat(uiLocale, { day: "numeric", month: "short", year: "numeric" }),
+      clock: new Intl.DateTimeFormat(uiLocale, { hour: "2-digit", minute: "2-digit" }),
+      day: new Intl.DateTimeFormat(uiLocale),
+    };
+  }
+  return dateFormatters;
+}
 
-export const archiveDay = (iso: string) => new Date(iso).toLocaleDateString(uiLocale);
+function formatDate(formatter: Intl.DateTimeFormat, iso: string) {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? date.toString() : formatter.format(date);
+}
+
+export const fmtDate = (iso: string) => formatDate(formatters().date, iso);
+export const fmtClock = (iso: string) => formatDate(formatters().clock, iso);
+export const archiveDay = (iso: string) => formatDate(formatters().day, iso);
 
 export function archiveHeading(iso: string) {
   const today = new Date();
-  if (archiveDay(iso) === today.toLocaleDateString(uiLocale)) return t("Oggi");
+  const day = archiveDay(iso);
+  const formatter = formatters().day;
+  if (day === formatter.format(today)) return t("Oggi");
   today.setDate(today.getDate() - 1);
-  return archiveDay(iso) === today.toLocaleDateString(uiLocale) ? t("Ieri") : fmtDate(iso);
+  return day === formatter.format(today) ? t("Ieri") : fmtDate(iso);
 }
 
 export const fmtIsoDay = (day: string) => new Date(`${day}T00:00:00`).toLocaleDateString(uiLocale, {

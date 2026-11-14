@@ -540,7 +540,7 @@ fn capture(app: &tauri::AppHandle, state: &Shared, drawing: Drawing, monitor: ta
     }
     if let Ok(image) = &result {
         let _ = app.emit("screenshot-saved", image);
-        let _ = app.emit("calls-changed", ());
+        crate::detail_changed(app, &call.id);
     }
     result
 }

@@ -56,7 +56,16 @@ function mockTauri() {
           const rows = calls.filter(c =>
             (!args.query || lower(c.title).includes(lower(args.query))) &&
             (!args.tags?.length || c.tags.some(t => args.tags.some(f => lower(f) === lower(t)))));
-          return { items: rows.slice(args.offset, args.offset + args.limit), total: rows.length, has_more: args.offset + args.limit < rows.length, search_results: {} };
+          const candidates = args.callId ? rows.filter(c => c.id === args.callId)
+            : args.cursor ? rows.filter(c => c.created_at < args.cursor.created_at || (c.created_at === args.cursor.created_at && c.id < args.cursor.id))
+            : rows;
+          const items = candidates.slice(0, args.limit);
+          const last = items.at(-1);
+          return {
+            items, total: args.cursor ? null : rows.length,
+            next_cursor: last && candidates.length > args.limit ? { id: last.id, created_at: last.created_at } : null,
+            search_results: {},
+          };
         }
         case "list_tags": {
           const counts = new Map();
@@ -69,7 +78,11 @@ function mockTauri() {
           return { call, segments, messages: [], notes: [], screenshots: [] };
         }
         case "get_settings": return structuredClone(settings);
-        case "save_settings": Object.assign(settings, args.settings); emit("theme-changed", settings.theme); return;
+        case "save_settings":
+          Object.assign(settings, args.settings);
+          emit("theme-changed", settings.theme);
+          emit("configuration-changed", null);
+          return { settings: structuredClone(settings), cleanup_error: null, engine_error: null };
         case "set_theme": settings.theme = args.theme; emit("theme-changed", args.theme); return structuredClone(settings);
         case "get_status": return status;
         case "recorder_dock_status": return null;

@@ -451,13 +451,22 @@
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
+.virtual-archive-rows {
+  position: relative;
+  overflow-anchor: none;
+}
+.virtual-archive-row {
+  position: absolute;
+  inset: 0 0 auto;
+  display: flow-root;
+}
 .archive-group {
   padding: 14px 8px 6px;
   color: var(--subtle);
   font-size: var(--text-xs);
   font-weight: 600;
 }
-.archive-group:first-child {
+.archive-group.first {
   padding-top: 4px;
 }
 .call-item {

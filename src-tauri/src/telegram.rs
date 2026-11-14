@@ -628,7 +628,7 @@ fn process(
             return Ok(());
         }
         complete(&state.db.guard(), &job.id)?;
-        crate::changed(app, state);
+        crate::archive_changed(app, Some(&job.id));
         let _ = app.emit("app-error", format!("Telegram: {error}"));
         if is_current(runtime, session) {
             reply(

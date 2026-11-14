@@ -840,7 +840,7 @@ pub fn chat(
     )?;
     connection_stage(app, state, "In attesa della risposta di Antigravity");
     db::append_message(&state.db.guard(), id, "user", prompt.trim())?;
-    let _ = app.emit("calls-changed", ());
+    crate::detail_changed(app, id);
     let deadline = Instant::now() + Duration::from_secs(600);
     let mut answer = String::new();
     loop {

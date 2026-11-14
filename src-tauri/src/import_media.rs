@@ -66,11 +66,13 @@ pub(crate) fn import_file(
             on_created(&transaction)?;
             transaction.commit().map_err(|e| e.to_string())?;
         }
-        if let Err(error) = crate::begin_processing(app, state, id) {
+        if let Err(error) = crate::processing::enqueue(app, state, id) {
             let _ = db::status(&state.db.guard(), id, "failed", Some(duration), Some(&error));
+            crate::archive_changed(app, Some(id));
             return Err(error);
         }
         crate::changed(app, state);
+        crate::archive_changed(app, Some(id));
         Ok(id.to_owned())
     })();
     if result.is_err() && db::detail(&state.db.guard(), id).is_err() { let _ = crate::remove_audio(state, id); }

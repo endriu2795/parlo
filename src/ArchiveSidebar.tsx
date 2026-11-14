@@ -1,9 +1,10 @@
 import { t } from "./i18n";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Circle, FileText, FileUp, Mic, Moon, RefreshCw, Search, Send, Settings as SettingsIcon, ShieldCheck, Square, Sun, Users } from "lucide-react";
 import { HighlightedText, SearchExcerpt } from "./SearchText";
 import { FilterPanel, FilterSummary, FilterToggle, filterCount, type ArchiveFilter } from "./ArchiveFilters";
 import { archiveDay, archiveHeading, fmtClock, fmtTime, statusLabel } from "./format";
+import VirtualArchiveList from "./VirtualArchiveList";
 import type { SettingsTab } from "./SettingsModal";
 import type { Call, SearchHit, SharedTranscript, TagCount } from "./types";
 
@@ -15,6 +16,7 @@ export type ArchiveSidebarProps = {
   calls: Call[];
   total: number;
   hasMore: boolean;
+  loading: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
   selected: string | null;
@@ -71,6 +73,34 @@ function CallSearchResults({ call, onOpen }: { call: Call; onOpen: (call: Call, 
       {search.count > search.hits.length && <span className="call-search-more">{t("Altri {0} passaggi nella registrazione", search.count - search.hits.length)}</span>}
     </div>
   );
+}
+
+const SHARED_PAGE_SIZE = 30;
+
+function SharedCallList({ items, query, selected, onOpen }: {
+  items: SharedTranscript[]; query: string; selected?: string; onOpen: (id: string) => void;
+}) {
+  const [limit, setLimit] = useState(SHARED_PAGE_SIZE);
+  const matches = useMemo(() => {
+    const term = query.trim().toLocaleLowerCase();
+    return items.filter(item => item.id === selected || [item.title, item.publisher].some(text => text.toLocaleLowerCase().includes(term)));
+  }, [items, query, selected]);
+
+  const rows = useMemo(() => matches.slice(0, limit), [matches, limit]);
+  return <VirtualArchiveList label={t("Condivise")} rows={rows} estimateSize={65} renderRow={item => (
+      <article className={`call-item ${selected === item.id ? "selected" : ""}`}>
+        <button type="button" className="call-select" aria-current={selected === item.id ? "page" : undefined} onClick={() => onOpen(item.id)}>
+          <span className="archive-file-icon"><Users size={16} /></span>
+          <div className="archive-file-content">
+            <strong><HighlightedText text={item.title} query={query} substring /></strong>
+            <div className="call-meta"><HighlightedText text={item.publisher} query={query} substring /></div>
+          </div>
+        </button>
+      </article>
+    )}>
+    {matches.length === 0 && <div className="sidebar-empty">{t("Nessuna trascrizione condivisa trovata.")}</div>}
+    {matches.length > limit && <button type="button" className="load-more" onClick={() => setLimit(value => value + SHARED_PAGE_SIZE)}>{t("Mostra altre")}</button>}
+  </VirtualArchiveList>;
 }
 
 export default function ArchiveSidebar(props: ArchiveSidebarProps) {
@@ -142,27 +172,15 @@ export default function ArchiveSidebar(props: ArchiveSidebarProps) {
         <span>{t("Le mie trascrizioni")}</span>
         <span className="archive-count">{props.total}</span>
       </div>}
-      {viewingShared ? <nav className="call-list" aria-label={t("Condivise")}>
-        {props.shared.filter(item => !searching || item.id === props.selectedShared || [item.title, item.publisher].some(text => text.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))).map(item => (
-          <article className={`call-item ${props.selectedShared === item.id ? "selected" : ""}`} key={item.id}>
-            <button type="button" className="call-select" aria-current={props.selectedShared === item.id ? "page" : undefined}
-              onClick={() => props.onOpenShared(item.id)}>
-              <span className="archive-file-icon"><Users size={16} /></span>
-              <div className="archive-file-content">
-                <strong><HighlightedText text={item.title} query={query} substring /></strong>
-                <div className="call-meta">{item.publisher}</div>
-              </div>
-            </button>
-          </article>
-        ))}
-      </nav> : <nav className="call-list" aria-label={t("Le mie trascrizioni")}
+      {viewingShared ? <SharedCallList key={query} items={props.shared} query={query} selected={props.selectedShared} onOpen={props.onOpenShared} /> : <VirtualArchiveList
+        label={t("Le mie trascrizioni")} rows={calls} estimateSize={searching ? 220 : 105}
         onScroll={e => {
           const el = e.currentTarget;
           if (el.scrollHeight - el.scrollTop - el.clientHeight < 100) props.onLoadMore();
-        }}>
-        {calls.map((call, index) => (
-          <Fragment key={call.id}>
-            {(index === 0 || archiveDay(calls[index - 1].created_at) !== archiveDay(call.created_at)) && <div className="archive-group">{archiveHeading(call.created_at)}</div>}
+        }}
+        renderRow={(call, index) => (
+          <>
+            {(index === 0 || archiveDay(calls[index - 1].created_at) !== archiveDay(call.created_at)) && <div className={index === 0 ? "archive-group first" : "archive-group"}>{archiveHeading(call.created_at)}</div>}
             <article className={`call-item ${selected === call.id ? "selected" : ""}`}>
               <button type="button" className="call-select" aria-current={selected === call.id ? "page" : undefined} onClick={() => onOpen(call, call.search?.hits[0])}>
                 <CallStatusIcon status={call.status} origin={call.origin} />
@@ -190,9 +208,10 @@ export default function ArchiveSidebar(props: ArchiveSidebarProps) {
               )}
               {searching && call.search && <CallSearchResults call={call} onOpen={onOpen} />}
             </article>
-          </Fragment>
-        ))}
-        {calls.length === 0 && (
+          </>
+        )}>
+        {props.loading && <div className="sidebar-empty">{t("Caricamento…")}</div>}
+        {!props.loading && calls.length === 0 && (
           <div className="sidebar-empty">
             {searching || activeFilters ? t("Nessuna registrazione trovata.") : t("Ancora nessuna registrazione. Inizia dal pulsante qui sopra.")}
           </div>
@@ -202,7 +221,7 @@ export default function ArchiveSidebar(props: ArchiveSidebarProps) {
             {props.loadingMore ? t("Caricamento…") : t("Mostra altre")}
           </button>
         )}
-      </nav>}
+      </VirtualArchiveList>}
 
       <div className="sidebar-bottom">
         <div className="local-storage">

@@ -420,7 +420,7 @@ dependencies = [
 
 [[package]]
 name = "callnotes"
-version = "0.3.14"
+version = "0.3.16"
 dependencies = [
  "base64 0.23.1",
  "chrono",

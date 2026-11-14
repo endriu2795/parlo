@@ -168,7 +168,8 @@ export type Status = {
   live_stage: string;
 };
 export type TagCount = { tag: string; count: number };
-export type CallPage = { items: Call[]; total: number; has_more: boolean };
+export type CallCursor = Pick<Call, "created_at" | "id">;
+export type CallPage = { items: Call[]; total: number | null; next_cursor: CallCursor | null };
 export type AuthStatus = {
   installed?: boolean;
   installing?: boolean;

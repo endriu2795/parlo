@@ -109,7 +109,9 @@ pub fn open(path: &Path) -> Result<Connection> {
     conn.execute_batch("CREATE TABLE IF NOT EXISTS capture_diagnostics (
         call_id TEXT PRIMARY KEY REFERENCES calls(id) ON DELETE CASCADE,
         json TEXT NOT NULL);").map_err(err)?;
-    conn.execute_batch("CREATE TABLE IF NOT EXISTS call_tags (
+    conn.execute_batch("CREATE INDEX IF NOT EXISTS calls_archive_order
+        ON calls(created_at DESC, id DESC) WHERE origin != 'shared_chat';
+        CREATE TABLE IF NOT EXISTS call_tags (
         call_id TEXT NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
         tag TEXT NOT NULL COLLATE NOCASE, PRIMARY KEY(call_id,tag));").map_err(err)?;
     setup_passage_search(&conn)?;
@@ -216,11 +218,11 @@ fn row_call(row: &rusqlite::Row<'_>) -> rusqlite::Result<Call> {
 }
 #[cfg(test)]
 pub(crate) fn list(conn: &Connection, query: &str) -> Result<Vec<Call>> {
-    Ok(page(conn, query, 0, 10000)?.items)
+    Ok(page(conn, query, 10000)?.items)
 }
 #[cfg(test)]
-pub fn page(conn: &Connection, query: &str, offset: usize, limit: usize) -> Result<CallPage> {
-    page_filtered(conn,query,offset,limit,None,None,&[])
+fn page(conn: &Connection, query: &str, limit: usize) -> Result<CallPage> {
+    page_filtered(conn, query, limit, None, None, &[], ArchiveSlice::First)
 }
 /// Every tag in the archive with the number of calls using it, most used first.
 pub fn tags(conn: &Connection) -> Result<Vec<TagCount>> {
@@ -228,8 +230,18 @@ pub fn tags(conn: &Connection) -> Result<Vec<TagCount>> {
     let rows = stmt.query_map([], |r| Ok(TagCount { tag: r.get(0)?, count: r.get(1)? })).map_err(err)?;
     rows.collect::<std::result::Result<Vec<_>, _>>().map_err(err)
 }
+#[derive(Clone, Copy)]
+pub enum ArchiveSlice<'a> {
+    First,
+    After(&'a CallCursor),
+    Call(&'a str),
+}
+
 /// `tags` keeps calls that carry at least one of the given tags (case-insensitive).
-pub fn page_filtered(conn: &Connection, query: &str, offset: usize, limit: usize, date_from: Option<&str>, date_to: Option<&str>, tags: &[String]) -> Result<CallPage> {
+pub fn page_filtered(
+    conn: &Connection, query: &str, limit: usize, date_from: Option<&str>,
+    date_to: Option<&str>, tags: &[String], slice: ArchiveSlice<'_>,
+) -> Result<CallPage> {
     let parse=|date:Option<&str>| date.map(chrono::DateTime::parse_from_rfc3339).transpose().map_err(|_|"Intervallo di date non valido".to_string());
     let from=parse(date_from)?;
     let to=parse(date_to)?;
@@ -244,19 +256,33 @@ pub fn page_filtered(conn: &Connection, query: &str, offset: usize, limit: usize
     let filter=format!("{filter} AND c.origin != 'shared_chat' AND (?4 IS NULL OR julianday(c.created_at)>=julianday(?4)) AND (?5 IS NULL OR julianday(c.created_at)<julianday(?5)) AND (?6 IS NULL OR c.id IN (SELECT call_id FROM call_tags WHERE tag IN (SELECT value FROM json_each(?6))))");
     let tag_filter = (!tags.is_empty()).then(|| serde_json::to_string(tags)).transpose().map_err(|e| e.to_string())?;
     let limit = limit.clamp(1, 10000);
-    let sql = format!(
-        "{select}{filter} ORDER BY c.created_at DESC,c.id DESC LIMIT {limit} OFFSET {offset}"
-    );
+    let (range, key, cursor_id) = match slice {
+        ArchiveSlice::First => (" AND ?7 IS NULL AND ?8 IS NULL", None, None),
+        ArchiveSlice::After(cursor) => (" AND (c.created_at,c.id) < (?7,?8)", Some(cursor.created_at.as_str()), Some(cursor.id.as_str())),
+        ArchiveSlice::Call(id) => (" AND c.id=?7 AND ?8 IS NULL", Some(id), None),
+    };
+    let sql = format!("{select}{filter}{range} ORDER BY c.created_at DESC,c.id DESC LIMIT {}", limit + 1);
     // Keep the input literal and let the final word match a prefix (ricor → ricordati).
     let search = format!("\"{}\"*", q.replace('"', "\"\""));
     let title_search = format!("title : {search}");
-    let count_sql = format!("SELECT count(*) FROM calls c{filter}");
-    let total: usize = conn.query_row(&count_sql, params![search,q,title_search,date_from,date_to,tag_filter], |r|r.get(0)).map_err(err)?;
+    let total = if matches!(slice, ArchiveSlice::After(_)) {
+        None
+    } else {
+        let count_sql = format!("SELECT count(*) FROM calls c{filter}");
+        Some(conn.query_row(&count_sql, params![search,q,title_search,date_from,date_to,tag_filter], |row| row.get(0)).map_err(err)?)
+    };
     let mut stmt = conn.prepare(&sql).map_err(err)?;
-    let rows = stmt.query_map(params![search,q,title_search,date_from,date_to,tag_filter],row_call).map_err(err)?;
-    let items: Vec<Call> = rows
+    let rows = stmt.query_map(params![search,q,title_search,date_from,date_to,tag_filter,key,cursor_id],row_call).map_err(err)?;
+    let mut items: Vec<Call> = rows
         .collect::<std::result::Result<Vec<_>, _>>()
         .map_err(err)?;
+    let has_more = items.len() > limit;
+    items.truncate(limit);
+    let next_cursor = if has_more {
+        items.last().map(|call| CallCursor { created_at: call.created_at.clone(), id: call.id.clone() })
+    } else {
+        None
+    };
     let mut search_results = std::collections::BTreeMap::new();
     if !q.is_empty() {
         for call in &items {
@@ -267,7 +293,7 @@ pub fn page_filtered(conn: &Connection, query: &str, offset: usize, limit: usize
         }
     }
     Ok(CallPage {
-        has_more: offset + items.len() < total,
+        next_cursor,
         items,
         total,
         search_results,
@@ -714,11 +740,11 @@ mod tests {
         create(&conn, "tags", "Synthetic call", "2026-10-18T10:00:00Z").unwrap();
         set_tags(&mut conn, "tags", vec!["  Cliente   Rossi  ".into(), "cliente rossi".into(), "Da rivedere".into()]).unwrap();
         assert_eq!(detail(&conn, "tags").unwrap().call.tags, vec!["Cliente Rossi", "Da rivedere"]);
-        assert_eq!(page(&conn, "rossi", 0, 10).unwrap().total, 1);
-        assert_eq!(page(&conn, "rossi", 0, 10).unwrap().items[0].tags.len(), 2);
+        assert_eq!(page(&conn, "rossi", 10).unwrap().total, Some(1));
+        assert_eq!(page(&conn, "rossi", 10).unwrap().items[0].tags.len(), 2);
         create(&conn, "untagged", "Other call", "2026-10-19T10:00:00Z").unwrap();
-        assert_eq!(page_filtered(&conn, "", 0, 10, None, None, &["CLIENTE rossi".into()]).unwrap().total, 1);
-        assert_eq!(page_filtered(&conn, "", 0, 10, None, None, &["Altro".into()]).unwrap().total, 0);
+        assert_eq!(page_filtered(&conn, "", 10, None, None, &["CLIENTE rossi".into()], ArchiveSlice::First).unwrap().total, Some(1));
+        assert_eq!(page_filtered(&conn, "", 10, None, None, &["Altro".into()], ArchiveSlice::First).unwrap().total, Some(0));
         assert_eq!(tags(&conn).unwrap().iter().map(|t| (t.tag.as_str(), t.count)).collect::<Vec<_>>(), vec![("Cliente Rossi", 1), ("Da rivedere", 1)]);
         assert!(set_tags(&mut conn, "tags", vec!["".into()]).is_err());
         assert!(set_tags(&mut conn, "missing", vec!["Tag".into()]).is_err());
@@ -876,15 +902,15 @@ mod tests {
             text: "La consegna è confermata".into(), source: "microphone".into(),
             quality: None, original_text: None,
         }]).unwrap();
-        let result = page(&c, "ricor", 0, 10).unwrap();
-        assert_eq!(result.total, 1);
+        let result = page(&c, "ricor", 10).unwrap();
+        assert_eq!(result.total, Some(1));
         assert_eq!(result.search_results["prefix"].count, 1);
         assert_eq!(result.search_results["prefix"].hits[0].source, "note");
-        assert_eq!(page(&c, "RICOR", 0, 10).unwrap().total, 1);
-        assert_eq!(page(&c, "il caff", 0, 10).unwrap().total, 1);
-        assert_eq!(page(&c, "consegna è conf", 0, 10).unwrap().total, 1);
-        assert_eq!(page(&c, "cord", 0, 10).unwrap().total, 0);
-        assert_eq!(page(&c, "\" OR *", 0, 10).unwrap().total, 0);
+        assert_eq!(page(&c, "RICOR", 10).unwrap().total, Some(1));
+        assert_eq!(page(&c, "il caff", 10).unwrap().total, Some(1));
+        assert_eq!(page(&c, "consegna è conf", 10).unwrap().total, Some(1));
+        assert_eq!(page(&c, "cord", 10).unwrap().total, Some(0));
+        assert_eq!(page(&c, "\" OR *", 10).unwrap().total, Some(0));
     }
     #[test]
     fn date_filter_combines_local_day_search_and_pagination() {
@@ -898,17 +924,17 @@ mod tests {
         ] {create(&c,id,title,date).unwrap();}
         let from=Some("2026-10-17T00:00:00+02:00");
         let to=Some("2026-10-18T00:00:00+02:00");
-        assert_eq!(page_filtered(&c,"",0,10,from,to,&[]).unwrap().total,3);
-        let first=page_filtered(&c,"cliente",0,1,from,to,&[]).unwrap();
-        let second=page_filtered(&c,"cliente",1,1,from,to,&[]).unwrap();
-        assert_eq!(first.total,2);assert!(first.has_more);assert!(!second.has_more);
+        assert_eq!(page_filtered(&c, "", 10, from, to, &[], ArchiveSlice::First).unwrap().total,Some(3));
+        let first=page_filtered(&c, "cliente", 1, from, to, &[], ArchiveSlice::First).unwrap();
+        let second=page_filtered(&c, "cliente", 1, from, to, &[], ArchiveSlice::After(first.next_cursor.as_ref().unwrap())).unwrap();
+        assert_eq!(first.total,Some(2));assert!(first.next_cursor.is_some());assert!(second.next_cursor.is_none());
         assert_ne!(first.items[0].id,second.items[0].id);
         assert!(first.items.iter().chain(&second.items).all(|c|c.id=="start" || c.id=="end"));
-        assert_eq!(page_filtered(&c,"",0,10,from,None,&[]).unwrap().total,4);
-        assert_eq!(page_filtered(&c,"",0,10,None,to,&[]).unwrap().total,4);
-        assert_eq!(page(&c,"",0,10).unwrap().total,5);
-        assert!(page_filtered(&c,"",0,10,to,from,&[]).is_err());
-        assert!(page_filtered(&c,"",0,10,Some("invalid"),None,&[]).is_err());
+        assert_eq!(page_filtered(&c, "", 10, from, None, &[], ArchiveSlice::First).unwrap().total,Some(4));
+        assert_eq!(page_filtered(&c, "", 10, None, to, &[], ArchiveSlice::First).unwrap().total,Some(4));
+        assert_eq!(page(&c, "", 10).unwrap().total,Some(5));
+        assert!(page_filtered(&c, "", 10, to, from, &[], ArchiveSlice::First).is_err());
+        assert!(page_filtered(&c, "", 10, Some("invalid"), None, &[], ArchiveSlice::First).is_err());
     }
     #[test]
     fn archive_search_and_cascade() {
@@ -958,18 +984,23 @@ mod tests {
             let id = format!("{i:02}");
             create(&c, &id, &format!("Call {i}"), "2026-10-11T10:00:00Z").unwrap();
         }
-        let first = page(&c, "", 0, 10).unwrap();
-        let second = page(&c, "", 10, 10).unwrap();
-        let third = page(&c, "", 20, 10).unwrap();
-        assert_eq!(first.total, 25);
+        let first = page(&c, "", 10).unwrap();
+        let cursor = first.next_cursor.as_ref().unwrap();
+        delete(&mut c, &cursor.id).unwrap();
+        create(&c, "newer", "Newer", "2026-10-12T10:00:00Z").unwrap();
+        let second = page_filtered(&c, "", 10, None, None, &[], ArchiveSlice::After(cursor)).unwrap();
+        let third = page_filtered(&c, "", 10, None, None, &[], ArchiveSlice::After(second.next_cursor.as_ref().unwrap())).unwrap();
+        assert_eq!(second.total, None);
+        assert_eq!(second.items[0].id, "14");
+        assert_eq!(first.total, Some(25));
         assert_eq!(first.items.len(), 10);
-        assert!(first.has_more);
+        assert!(first.next_cursor.is_some());
         assert!(first
             .items
             .iter()
             .all(|a| !second.items.iter().any(|b| a.id == b.id)));
         assert_eq!(third.items.len(), 5);
-        assert!(!third.has_more);
+        assert!(third.next_cursor.is_none());
         store_draft(
             &mut c,
             "00",
@@ -984,7 +1015,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(detail(&c, "00").unwrap().call.status, "recording");
-        assert_eq!(page(&c, "nascosta", 0, 10).unwrap().items[0].id, "00");
+        assert_eq!(page(&c, "nascosta", 10).unwrap().items[0].id, "00");
     }
     #[test]
     fn committed_silent_transcript_survives_restart_during_finalization() {

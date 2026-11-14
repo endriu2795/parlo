@@ -519,6 +519,47 @@ pub(super) fn capture(
 #[cfg(test)]
 mod tests {
     #[test]
+    #[ignore = "Requires default Windows audio devices and a 997 Hz test tone on the default output"]
+    fn default_devices_deliver_wasapi_packets() {
+        unsafe { CoInitializeEx(None, COINIT_MULTITHREADED).ok() }.unwrap();
+        let _com = Com;
+        let enumerator: IMMDeviceEnumerator =
+            unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) }.unwrap();
+        let mic = unsafe { enumerator.GetDefaultAudioEndpoint(eCapture, eConsole) }.unwrap();
+        let output = unsafe { enumerator.GetDefaultAudioEndpoint(eRender, eConsole) }.unwrap();
+        let mut mic = Stream::open(String::new(), &mic, false).unwrap();
+        let mut loopback = Stream::open(String::new(), &output, true).unwrap();
+        let end = Instant::now() + Duration::from_secs(4);
+        let mut mic_frames = 0;
+        let mut loopback_frames = 0;
+        let mut tone_detected = false;
+        let phase_step = std::f64::consts::TAU * 997.0 / 16000.0;
+        while Instant::now() < end {
+            // The microphone check keeps only a frame count.
+            while let Some(packet) = mic.packet().unwrap() {
+                mic_frames += packet.samples.len();
+            }
+            while let Some(packet) = loopback.packet().unwrap() {
+                let (mut cosine, mut sine) = (0.0, 0.0);
+                for (index, sample) in packet.samples.iter().enumerate() {
+                    let (s, c) = (index as f64 * phase_step).sin_cos();
+                    cosine += f64::from(*sample) * c;
+                    sine += f64::from(*sample) * s;
+                }
+                loopback_frames += packet.samples.len();
+                if packet.samples.len() >= 128 {
+                    tone_detected |= cosine.hypot(sine) / packet.samples.len() as f64 > 0.002;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(mic_frames >= 16000, "Microphone frames: {mic_frames}");
+        assert!(loopback_frames >= 16000, "Loopback frames: {loopback_frames}");
+        assert!(tone_detected, "Loopback missed the synthetic tone");
+        println!("WASAPI frames: microphone={mic_frames}, loopback={loopback_frames}");
+    }
+
+    #[test]
     fn output_route_supports_default_communications_and_fixed_device() {
         use super::*;
         assert_eq!(output_role(eRender, ""), Some(eConsole));

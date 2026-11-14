@@ -146,6 +146,9 @@ fn preferences(conn: &Connection, id: &str) -> Result<Preferences> {
     json.map(|value| serde_json::from_str(&value).map_err(|e| e.to_string()))
         .unwrap_or_else(|| Ok(Preferences::default()))
 }
+pub(crate) fn transcript_enabled(conn: &Connection, id: &str) -> Result<bool> {
+    Ok(!preferences(conn, id)?.excluded.contains("transcript"))
+}
 fn save(conn: &Connection, id: &str, value: &Preferences) -> Result<()> {
     conn.execute("INSERT INTO chat_sources(call_id,json) VALUES(?1,?2) ON CONFLICT(call_id) DO UPDATE SET json=excluded.json", params![id,serde_json::to_string(value).map_err(|e|e.to_string())?]).map_err(|e|e.to_string())?;
     Ok(())
@@ -1028,12 +1031,10 @@ mod tests {
             recorder: Mutex::new(None),
             operation: Mutex::new(()),
             data_dir: root.clone(),
-            queue: Default::default(),
+            processing: Default::default(),
             engine: Mutex::new(None),
             live_engine: Mutex::new(None),
             live_process: Mutex::new(None),
-            final_process: Mutex::new(None),
-            processing_cancel: Default::default(),
             chat_control: Default::default(),
             shortcut_capture: Default::default(),
             provision: Default::default(),

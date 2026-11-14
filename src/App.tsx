@@ -13,18 +13,16 @@ import CaptureActions, { useNoteShortcut } from "./CaptureActions";
 import ConfirmDialog from "./ConfirmDialog";
 import WelcomeScreen from "./WelcomeScreen";
 import { EngineBanner, ErrorBanner, ProcessingBanner } from "./StatusBanners";
-import { noFilter, type ArchiveFilter } from "./ArchiveFilters";
-import { archiveDateBounds } from "./archiveDates";
+import { useArchive } from "./useArchive";
 import { defaultShortcut, formatShortcut } from "./shortcuts";
 import type { SearchFocus } from "./TranscriptSearch";
 import type { SettingsTab } from "./SettingsModal";
-import type { Call, Detail, Settings, Status, Health, EngineSetup, SearchHit, TagCount, PublicationStatus } from "./types";
+import type { Call, Detail, Settings, Status, Health, EngineSetup, SearchHit, PublicationStatus } from "./types";
 
 const SettingsModal = lazy(() => import("./SettingsModal"));
 const AssistantPanel = lazy(() => import("./AssistantPanel"));
 const AccountDialog = lazy(() => import("./AccountDialog"));
 
-const PAGE_SIZE = 10;
 const initialStatus: Status = {
   capture: null,
   processing: null,
@@ -39,15 +37,9 @@ const noReconnect = { microphone: false, system: false };
 
 export default function App() {
   const customTitlebar = desktop && /Windows/i.test(navigator.userAgent);
-  const [calls, setCalls] = useState<Call[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [sharedChat, setSharedChat] = useState<{ source: string; id: string } | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<ArchiveFilter>(noFilter);
-  const [tags, setTags] = useState<TagCount[]>([]);
-  const dateBounds = archiveDateBounds(filter.from, filter.to)!;
-  const filterKey = `${query}\n${filter.from}\n${filter.to}\n${filter.tags.join("\n")}`;
   const [searchFocus, setSearchFocus] = useState<SearchFocus | undefined>();
   const [settings, setSettings] = useState<Settings | null>(null);
   const shared = useSharedTranscripts(settings?.sharing);
@@ -63,6 +55,9 @@ export default function App() {
   const [engineSetup, setEngineSetup] = useState<EngineSetup | null>(null);
   const updates = useAppUpdates(desktop);
   const [error, setError] = useState("");
+  const [settingsWarnings, setSettingsWarnings] = useState<{ cleanup: string | null; engine: string | null }>();
+  const archive = useArchive(setError);
+  const { query, setQuery, refresh: refreshArchive } = archive;
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
   const [exportMessage, setExportMessage] = useState("");
@@ -76,27 +71,18 @@ export default function App() {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [reconnecting, setReconnecting] = useState(noReconnect);
   const [now, setNow] = useState(Date.now());
-  const [total, setTotal] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
   const openDetail = detail && detail.call.id === selected ? detail : null;
   const assistantDetail = sharedId
     ? sharedChat?.source === sharedId && openDetail?.call.id === sharedChat.id ? openDetail : null
     : openDetail?.call.origin === "shared_chat" ? null : openDetail;
   const showAssistant = !!assistantDetail && chatOpen;
   const workspace = useWorkspaceLayout(showAssistant, chatWide);
-  const refreshVersion = useRef(0);
+  const detailVersion = useRef(0);
+  const statusVersion = useRef(0);
+  const configVersion = useRef(0);
   const selectionVersion = useRef(0);
-  const visibleCount = useRef(PAGE_SIZE);
-  const loadBusy = useRef(false);
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
-  const previousFilter = useRef(filterKey);
-  if (previousFilter.current !== filterKey) {
-    previousFilter.current = filterKey;
-    visibleCount.current = PAGE_SIZE;
-  }
-
   useEffect(() => {
     if (!desktop || sharedId || !selected || openDetail?.call.origin === "shared_chat") {
       setPublication(null);
@@ -150,7 +136,7 @@ export default function App() {
     void api.openSharedAssistant(sharedId).then(async id => {
       const next = await api.detail(id);
       if (!active || version !== selectionVersion.current) return;
-      ++refreshVersion.current;
+      ++detailVersion.current;
       setDetail(next);
       setSharedChat({ source: sharedId, id });
       setSelected(id);
@@ -169,41 +155,47 @@ export default function App() {
       if (id) { ++selectionVersion.current; closeShared(); setSharedChat(null); setSelected(id); }
       setReconnecting(noReconnect);
     }
+    ++statusVersion.current;
     setStatus(value);
   }, [closeShared]);
 
-  const refresh = useCallback(async () => {
+  const refreshConfiguration = useCallback(async () => {
     if (!desktop) return;
-    const version = ++refreshVersion.current;
+    const version = ++configVersion.current;
     try {
-      const [pages, tagList, state, config, checks] = await Promise.all([
-        Promise.all(Array.from({ length: Math.ceil(visibleCount.current / PAGE_SIZE) },
-          (_, page) => api.list(query, page * PAGE_SIZE, PAGE_SIZE, dateBounds.from, dateBounds.to, filter.tags))),
-        api.tags(),
-        api.status(),
-        api.settings(),
-        api.health(),
-      ]);
-      const nextDetail = selected ? await api.detail(selected).catch(() => null) : null;
-      if (version !== refreshVersion.current) return;
-      setCalls(pages.flatMap(page => page.items));
-      setTotal(pages[0]?.total || 0);
-      setHasMore(pages.at(-1)?.has_more || false);
-      setTags(tagList);
-      receiveStatus(state);
-      setSettings(config);
-      setHealth(checks);
-      setDetail(nextDetail);
+      const [config, checks] = await Promise.all([api.settings(), api.health()]);
+      if (version === configVersion.current) {
+        setSettings(config);
+        setHealth(checks);
+      }
     } catch (e) {
-      if (version === refreshVersion.current) setError(String(e));
+      if (version === configVersion.current) setError(String(e));
     }
-  }, [query, filter, selected, receiveStatus]);
-  useEffect(() => { void refresh(); }, [refresh]);
+  }, []);
+  const refreshStatus = useCallback(async () => {
+    if (!desktop) return;
+    const version = ++statusVersion.current;
+    try {
+      const current = await api.status();
+      if (version === statusVersion.current) receiveStatus(current);
+    } catch (e) {
+      if (version === statusVersion.current) setError(String(e));
+    }
+  }, [receiveStatus]);
+  const refreshDetail = useCallback(async (id: string | null) => {
+    if (!desktop || !id || id !== selectedRef.current) return;
+    const version = ++detailVersion.current;
+    const next = await api.detail(id).catch(() => null);
+    if (version === detailVersion.current && id === selectedRef.current) setDetail(next);
+  }, []);
+  useEffect(() => { void refreshDetail(selected); }, [refreshDetail, selected]);
+  useEffect(() => { void refreshConfiguration(); }, [refreshConfiguration]);
+  useEffect(() => { void refreshStatus(); }, [refreshStatus]);
 
-  // Engine preparation runs in the backend; poll it and reload once it finishes.
+  // Engine preparation runs in the backend; poll its progress.
   useEffect(() => {
     if (!desktop) return;
-    let disposed = false, checking = false, wasRunning = false;
+    let disposed = false, checking = false;
     const check = async () => {
       if (checking) return;
       checking = true;
@@ -211,8 +203,6 @@ export default function App() {
         const current = await api.engineSetupStatus();
         if (disposed) return;
         setEngineSetup(current);
-        if (wasRunning && !current.running) await refresh();
-        wasRunning = current.running;
       } catch (e) {
         if (!disposed) setError(String(e));
       } finally {
@@ -222,25 +212,36 @@ export default function App() {
     void check();
     const timer = setInterval(() => void check(), 1000);
     return () => { disposed = true; clearInterval(timer); };
-  }, [refresh]);
+  }, []);
 
   useEffect(() => {
     if (!desktop) return;
-    // A minimized WebView may pause JS/event delivery; native inference keeps
-    // running. Reconcile with the backend when the window becomes visible.
-    const reconcile = () => { if (!document.hidden) void refresh(); };
+    // A minimized WebView may miss notifications while native inference continues.
+    const reconcile = () => {
+      if (document.hidden) return;
+      void refreshStatus();
+      void refreshDetail(selectedRef.current);
+    };
+    const onVisibility = () => {
+      if (document.hidden) return;
+      reconcile();
+      refreshArchive();
+      void refreshConfiguration();
+    };
     window.addEventListener("focus", reconcile);
-    document.addEventListener("visibilitychange", reconcile);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("focus", reconcile);
-      document.removeEventListener("visibilitychange", reconcile);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [refresh]);
+  }, [refreshArchive, refreshConfiguration, refreshDetail, refreshStatus]);
 
   useEffect(() => {
     if (!desktop) return;
     const listeners = [
-      listen("calls-changed", () => void refresh()),
+      listen<string>("call-detail-changed", e => void refreshDetail(e.payload)),
+      listen<null>("calls-changed", e => { if (!e.payload) void refreshDetail(selectedRef.current); }),
+      listen("configuration-changed", () => void refreshConfiguration()),
       listen<Status>("status-changed", e => receiveStatus(e.payload)),
       listen("screenshot-saved", () => setCaptureMessage(t("Screenshot salvato nella trascrizione"))),
       listen<"dark" | "light">("theme-changed", e => setSettings(previous => previous ? { ...previous, theme: e.payload } : previous)),
@@ -248,7 +249,7 @@ export default function App() {
         setReconnecting(previous => previous[e.payload.source] === e.payload.reconnecting
           ? previous : { ...previous, [e.payload.source]: e.payload.reconnecting })),
       listen<string>("open-call", e => { ++selectionVersion.current; closeShared(); setSharedChat(null); setSelected(e.payload); }),
-      listen<{ id: string; text: string }>("chat-delta", e => { if (e.payload.id === selected) setLiveAnswer(e.payload.text); }),
+      listen<{ id: string; text: string }>("chat-delta", e => { if (e.payload.id === selectedRef.current) setLiveAnswer(e.payload.text); }),
       listen<string>("app-error", e => setError(e.payload)),
     ];
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -256,14 +257,13 @@ export default function App() {
       clearInterval(timer);
       listeners.forEach(stop => void stop.then(unlisten => unlisten()));
     };
-  }, [refresh, selected, receiveStatus, closeShared]);
+  }, [refreshConfiguration, refreshDetail, receiveStatus, closeShared]);
 
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true);
     setError("");
     try {
       await fn();
-      await refresh();
     } catch (e) {
       setError(String(e));
     } finally {
@@ -271,27 +271,6 @@ export default function App() {
     }
   };
   const run = (fn: () => Promise<unknown>) => void act(fn);
-
-  const loadMore = async () => {
-    if (!hasMore || loadBusy.current) return;
-    loadBusy.current = true;
-    setLoadingMore(true);
-    const version = refreshVersion.current;
-    try {
-      const page = await api.list(query, calls.length, PAGE_SIZE, dateBounds.from, dateBounds.to, filter.tags);
-      if (version === refreshVersion.current) {
-        setCalls(previous => [...previous, ...page.items.filter(row => !previous.some(call => call.id === row.id))]);
-        visibleCount.current = calls.length + page.items.length;
-        setTotal(page.total);
-        setHasMore(page.has_more);
-      }
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      loadBusy.current = false;
-      setLoadingMore(false);
-    }
-  };
 
   const toggleTheme = () => {
     void api.theme(settings?.theme === "light" ? "dark" : "light").then(setSettings).catch(e => setError(String(e)));
@@ -311,7 +290,7 @@ export default function App() {
     // stale requests when another call or an incoming recording takes over.
     void api.detail(call.id).then(next => {
       if (version !== selectionVersion.current || selectedRef.current !== previous) return;
-      ++refreshVersion.current;
+      ++detailVersion.current;
       setDetail(next);
       setSelected(call.id);
       setSearchFocus(focus);
@@ -364,7 +343,6 @@ export default function App() {
     setError("");
     try {
       await api.chat(selected, text);
-      if (selectedRef.current === selected) await refresh();
     } finally {
       setLiveAnswer("");
     }
@@ -412,7 +390,7 @@ export default function App() {
                     status={status}
                     answer={liveAnswer}
                     onSend={send}
-                    onModel={async model => { if (settings) await act(() => api.chatModel(model)); }}
+                    onModel={async model => { if (settings) await act(async () => { await api.chatModel(model); await refreshConfiguration(); }); }}
                     onConnector={async (name, enabled) => setSettings(await api.connectorEnabled(name, enabled))}
                     onSettingsChange={setSettings}
                     onReset={async () => {
@@ -434,7 +412,8 @@ export default function App() {
         onSettings={() => setSettingsOpen("general")} onTheme={toggleTheme} onError={setError} />}
       <div className="app-shell workspace-shell" ref={workspace.root} style={workspace.style}>
         <ArchiveSidebar
-          calls={calls} total={total} hasMore={hasMore} loadingMore={loadingMore} onLoadMore={() => void loadMore()}
+          calls={archive.calls} total={archive.total} hasMore={!!archive.cursor} loading={archive.loading}
+          loadingMore={archive.loadingMore} onLoadMore={archive.loadMore}
           selected={shared.active ? null : selected} onOpen={openSearchResult}
           shared={shared.items} selectedShared={shared.active?.id} onCloseShared={() => {
             ++selectionVersion.current;
@@ -452,7 +431,7 @@ export default function App() {
             }
             shared.open(id);
           }}
-          query={query} onQuery={setQuery} filter={filter} onFilter={setFilter} tags={tags}
+          query={query} onQuery={setQuery} filter={archive.filter} onFilter={archive.setFilter} tags={archive.tags}
           recording={recording} elapsedMs={elapsed} canRecord={canRecord} onRecord={toggleRecording}
           canImport={canImport} importing={importing} onImport={importMedia}
           shortcut={shortcut} retentionMonths={settings?.retention_months}
@@ -467,6 +446,10 @@ export default function App() {
           {desktop && <UpdateBanner updates={updates} busy={busy || updateBusy} />}
           {desktop && usesLocalEngine && engineSetup && (engineSetup.running || engineSetup.error) && <EngineBanner setup={engineSetup} busy={busy} onRetry={retryEngine} />}
           {error && <ErrorBanner message={error} onClose={() => setError("")} />}
+          {settingsWarnings?.cleanup && <ErrorBanner message={t("Impostazioni salvate. Pulizia dell’archivio incompleta. {0}", settingsWarnings.cleanup)}
+            onClose={() => setSettingsWarnings({ ...settingsWarnings, cleanup: null })} />}
+          {settingsWarnings?.engine && <ErrorBanner message={t("Impostazioni salvate. Preparazione del motore incompleta. {0}", settingsWarnings.engine)}
+            onClose={() => setSettingsWarnings({ ...settingsWarnings, engine: null })} />}
           {status.processing && <ProcessingBanner status={status} busy={busy} onCancel={() => run(() => api.cancelProcessing(status.processing!))} />}
           {recoveringSources.length > 0 && (
             <div className="banner audio-route-notice" role="status">
@@ -499,7 +482,7 @@ export default function App() {
                 chatOpen={chatOpen}
                 onToggleChat={() => setChatOpen(!chatOpen)}
                 onRename={title => run(() => api.rename(displayDetail.call.id, title))}
-                onTags={async tags => { await api.setTags(displayDetail.call.id, tags); await refresh(); }}
+                onTags={tags => api.setTags(displayDetail.call.id, tags)}
                 onRetry={() => run(() => api.retry(displayDetail.call.id))}
                 onChangeService={() => setSettingsOpen("recording")}
                 onExport={() => exportMarkdown(false)}
@@ -529,21 +512,25 @@ export default function App() {
               health={health}
               engineSetup={engineSetup}
               onEngineSetup={setEngineSetup}
-              onRefresh={refresh}
+              onRefresh={refreshConfiguration}
               onAccount={provider => { setSettingsOpen(false); openAccount(provider); }}
               onClose={() => setSettingsOpen(false)}
               onSave={async value => {
                 setBusy(true);
                 setError("");
                 try {
-                  await api.saveSettings(value);
-                  await refresh();
+                  const saved = await api.saveSettings(value);
+                  setSettings(saved.settings);
                   setSettingsOpen(false);
+                  setSettingsWarnings({ cleanup: saved.cleanup_error, engine: saved.engine_error });
                 } finally {
                   setBusy(false);
                 }
               }}
-              onCleanup={() => act(api.cleanup)}
+              onCleanup={() => act(async () => {
+                await api.cleanup();
+                setSettingsWarnings(current => current && { ...current, cleanup: null });
+              })}
               busy={busy}
             />
           </Suspense>

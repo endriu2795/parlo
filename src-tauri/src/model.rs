@@ -553,11 +553,16 @@ pub struct TagCount {
     pub tag: String,
     pub count: usize,
 }
+#[derive(Serialize, Deserialize)]
+pub struct CallCursor {
+    pub created_at: String,
+    pub id: String,
+}
 #[derive(Serialize)]
 pub struct CallPage {
     pub items: Vec<Call>,
-    pub total: usize,
-    pub has_more: bool,
+    pub total: Option<usize>,
+    pub next_cursor: Option<CallCursor>,
     pub search_results: std::collections::BTreeMap<String, CallSearchResult>,
 }
 #[derive(Serialize)]

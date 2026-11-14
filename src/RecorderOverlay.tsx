@@ -84,7 +84,7 @@ export default function RecorderOverlay() {
     window.addEventListener("focus", reload);
     document.addEventListener("visibilitychange", reload);
     const listeners = [
-      listen("calls-changed", reload),
+      listen("configuration-changed", reload),
       listen<Status>("status-changed", e => receiveStatus(e.payload)),
       listen<boolean>("recorder-expanded", e => setExpanded(e.payload)),
       listen<DockEdge | null>("recorder-docked", e => { dockRevision.current++; setDock(e.payload); }),

@@ -40,7 +40,7 @@ pub async fn save_call_note(app: tauri::AppHandle, state: tauri::State<'_, Share
         db::add_note(&mut state.db.guard(), &draft.call_id, &note)?;
         *app.state::<Notes>().0.guard() = None;
         if let Some(window) = app.get_webview_window("note") { let _ = window.hide(); }
-        let _ = app.emit("calls-changed", ());
+        crate::archive_changed(&app, Some(&draft.call_id));
         Ok(())
     }).await.map_err(|e|e.to_string())?
 }

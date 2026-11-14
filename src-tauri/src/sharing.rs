@@ -394,7 +394,7 @@ fn shared_segments(markdown: &str) -> Vec<model::Segment> {
 }
 
 #[tauri::command]
-pub async fn open_shared_assistant(app: tauri::AppHandle, window: tauri::WebviewWindow, state: tauri::State<'_, Shared>, id: String) -> Result<String> {
+pub async fn open_shared_assistant(window: tauri::WebviewWindow, state: tauri::State<'_, Shared>, id: String) -> Result<String> {
     main_window(&window)?;
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -410,7 +410,6 @@ pub async fn open_shared_assistant(app: tauri::AppHandle, window: tauri::Webview
         let title = format!("{} · {}", document.transcript.title, document.transcript.publisher);
         let local_id = db::create_shared_chat(&mut conn, &document.transcript.id, &document.transcript.publisher_id, &title)?;
         drop(conn);
-        crate::changed(&app, &state);
         Ok(local_id)
     }).await.map_err(|_| "Apertura della trascrizione condivisa interrotta.".to_string())?
 }
@@ -669,7 +668,7 @@ mod tests {
         let detail = db::detail(&conn, &id).unwrap();
         assert_eq!(detail.call.origin, "shared_chat");
         assert!(detail.segments.is_empty());
-        assert_eq!(db::page_filtered(&conn, "", 0, 10, None, None, &[]).unwrap().items.len(), 0);
+        assert_eq!(db::page_filtered(&conn, "", 10, None, None, &[], db::ArchiveSlice::First).unwrap().items.len(), 0);
         db::delete(&mut conn, &id).unwrap();
         let count: i64 = conn.query_row("SELECT count(*) FROM shared_chat_links", [], |row| row.get(0)).unwrap();
         assert_eq!(count, 0);
@@ -683,9 +682,8 @@ mod tests {
         let state = Arc::new(crate::AppState {
             db: Mutex::new(db::open(Path::new(":memory:")).unwrap()),
             status: Default::default(), recorder: Mutex::new(None), operation: Mutex::new(()),
-            data_dir: root.clone(), queue: Default::default(), engine: Mutex::new(None),
-            live_engine: Mutex::new(None), live_process: Mutex::new(None), final_process: Mutex::new(None),
-            processing_cancel: Default::default(), chat_control: Default::default(),
+            data_dir: root.clone(), processing: Default::default(), engine: Mutex::new(None),
+            live_engine: Mutex::new(None), live_process: Mutex::new(None), chat_control: Default::default(),
             shortcut_capture: Default::default(), provision: Default::default(),
             auth: Default::default(), codex_auth: Default::default(), gemini_auth: Default::default(),
             catalog: Mutex::new(None),
