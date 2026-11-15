@@ -623,7 +623,13 @@ mod tests {
     #[test]
     fn screenshot_settings_upgrade_and_validate_distinct_shortcuts() {
         let mut settings:super::Settings=serde_json::from_str("{}").unwrap();
-        assert_eq!(settings.brush_size,5);assert_eq!(settings.drawing_shortcut,"Ctrl+Shift+D");
+        assert_eq!(settings.brush_size, 5);
+        let default_drawing_shortcut = if cfg!(target_os = "macos") {
+            "Super+Shift+D"
+        } else {
+            "Ctrl+Shift+D"
+        };
+        assert_eq!(settings.drawing_shortcut, default_drawing_shortcut);
         settings.validate().unwrap();
         settings.screenshot_shortcut=settings.drawing_shortcut.clone();assert!(settings.validate().is_err());
         settings.screenshot_shortcut="Ctrl+Shift+S".into();settings.brush_size=31;assert!(settings.validate().is_err());
@@ -683,15 +689,15 @@ mod tests {
     }
     #[cfg(windows)]
     #[test]
-    fn windows_vulkan_waits_for_cpu_adapter_before_reporting_model_ready() {
+    fn windows_vulkan_package_is_ready_for_final_transcription() {
         let root=std::env::temp_dir().join(format!("parlo-vulkan-ready-{}",uuid::Uuid::new_v4()));
         let model=root.join("models/whisper-turbo");
         std::fs::create_dir_all(root.join("whisper-cpp")).unwrap(); std::fs::create_dir_all(&model).unwrap();
         for file in ["runtime.json","whisper-cli.exe"] {std::fs::write(root.join("whisper-cpp").join(file),b"fixture").unwrap();}
-        std::fs::write(root.join("models/ggml-turbo.bin"),b"fixture").unwrap();
-        assert!(!super::model_ready_at(&root,&model,false));
-        for file in ["model.bin","config.json","tokenizer.json"]{std::fs::write(model.join(file),b"fixture").unwrap();}
-        assert!(super::model_ready_at(&root,&model,false));
+        assert!(!super::model_ready_at(&root, &model, false));
+        std::fs::write(root.join("models/ggml-turbo.bin"), b"fixture").unwrap();
+        assert!(super::model_ready_at(&root, &model, false));
+        assert!(!super::model_ready_at(&root, &model, true));
         assert!(root.starts_with(std::env::temp_dir()));std::fs::remove_dir_all(root).unwrap();
     }
     #[test]
