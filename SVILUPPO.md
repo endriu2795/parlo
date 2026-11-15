@@ -79,6 +79,11 @@ scegli un fornitore in **Impostazioni → Assistente**. [Guida all’uso](USO.md
 
 ## Contribuire e controllare le modifiche
 
+La [CI](.github/workflows/ci.yml) gira sui push a `main` e sulle pull request
+verso `main`. Controlla TypeScript e i test Node e Python su Linux, e i test
+Rust su Windows x64 e macOS (Apple Silicon e Intel). I collaudi desktop,
+audio, GPU e del portachiavi di sistema si eseguono a mano.
+
 Usa dati sintetici per le prove e committa solo codice e documentazione.
 Non aggiungere `.local-data`, `.tools`, runtime preparati, registrazioni,
 trascrizioni, credenziali o chiavi. Le modifiche contribuite al codice del
