@@ -5,7 +5,7 @@ import io
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 
 def load(filename):
@@ -26,15 +26,19 @@ class ModelSetupTests(unittest.TestCase):
             prepare.return_value.setup.assert_called_once_with(Path(temp), 'turbo', compute_mode='auto')
             preview.assert_not_called()
 
-    def test_enabled_preview_downloads_only_its_selected_model(self):
-        with tempfile.TemporaryDirectory() as temp, patch.object(models, 'load_accelerator') as prepare, patch.object(models, 'ensure_faster_model') as preview:
-            models.setup(Path(temp), 'small', live_model='tiny')
-            prepare.return_value.setup.assert_called_once_with(Path(temp), 'small', compute_mode='auto')
-            preview.assert_called_once_with(Path(temp), 'tiny')
+    def test_automatic_preview_downloads_only_its_selected_model(self):
+        with tempfile.TemporaryDirectory() as temp, patch.object(models, 'load_accelerator') as prepare, patch.object(models, 'ensure_faster_model') as cpu:
+            root = Path(temp)
+            models.setup(root, 'small', live_model='tiny')
+            self.assertEqual(prepare.return_value.setup.call_args_list, [
+                call(root, 'small', compute_mode='auto'),
+                call(root, 'tiny', compute_mode='auto', preview=True),
+            ])
+            cpu.assert_not_called()
 
-    def test_preview_selection_does_not_download_final_or_gpu_models(self):
+    def test_cpu_preview_selection_does_not_download_final_or_gpu_models(self):
         with tempfile.TemporaryDirectory() as temp, patch.object(models, 'load_accelerator') as prepare, patch.object(models, 'ensure_faster_model') as preview:
-            models.setup(Path(temp), 'tiny', preview_only=True)
+            models.setup(Path(temp), 'tiny', preview_only=True, compute_mode='cpu')
             prepare.assert_not_called()
             preview.assert_called_once_with(Path(temp), 'tiny')
 

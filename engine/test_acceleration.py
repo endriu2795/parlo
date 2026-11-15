@@ -17,7 +17,7 @@ class AccelerationTests(unittest.TestCase):
         (self.root/'models/whisper-turbo').mkdir()
         (self.root/'models/whisper-turbo/model.bin').touch()
         hw={'gpus':[],'vulkan':[{'device':'0','name':'Test Vulkan'}]}
-        with patch.object(a.os,'name','nt'),patch.object(a,'hardware',return_value=hw):
+        with patch.object(a.os,'name','nt'), patch.object(a, 'Path', type(self.root)), patch.object(a,'hardware',return_value=hw):
             plans=a.candidates(self.settings)
             self.assertEqual([(p['backend'],p['device']) for p in plans],[('cpp','0'),('faster','cpu')])
             self.assertEqual([p['backend'] for p in a.candidates({**self.settings,'compute_mode':'cpu'})],['faster'])
@@ -53,7 +53,8 @@ class AccelerationTests(unittest.TestCase):
             plans = a.candidates(self.settings)
             self.assertEqual([p['backend'] for p in plans], ['faster', 'openvino', 'openvino', 'faster'])
             self.assertEqual([p['device'] for p in a.candidates({**self.settings, 'compute_mode': 'cpu'})], ['CPU', 'cpu'])
-            self.assertEqual([p['device'] for p in a.candidates(self.settings, live=True)], ['cpu'])
+            self.assertEqual([p['device'] for p in a.candidates(self.settings, live=True)], ['cuda', 'GPU'])
+            self.assertEqual([p['device'] for p in a.candidates({**self.settings, 'live_compute_mode': 'cpu'}, live=True)], ['cpu'])
             self.assertEqual(a.candidates({**self.settings, 'whisper_model': '/custom/model'})[-1]['backend'], 'faster')
 
     def test_calibration_can_choose_cpu_and_invalidates_on_hardware_change(self):

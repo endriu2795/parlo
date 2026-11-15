@@ -26,10 +26,11 @@ class DictionaryTests(unittest.TestCase):
         self.assertNotIn('original_text', result[0])
 
     def test_final_inference_receives_hotwords(self):
-        model = SimpleNamespace(transcribe=Mock(return_value=([], None)), parlo_plan={'backend': 'faster', 'device': 'cpu'})
-        with patch.object(worker, 'available_memory', return_value=0):
+        model = SimpleNamespace(parlo_plan={'backend': 'faster', 'device': 'cpu'})
+        with patch.object(worker, 'adaptive_pipeline') as pipeline:
             worker.final_segments(model, np.zeros(10, dtype=np.float32), 'mixed', self.settings)
-        self.assertEqual(model.transcribe.call_args.kwargs['hotwords'], 'PARLO')
+        pipeline.assert_called_once_with(model)
+        self.assertEqual(pipeline.return_value.transcribe.call_args.kwargs['hotwords'], 'PARLO')
 
     def test_openvino_receives_hotwords_without_reading_a_model(self):
         model = acceleration.OpenVINOModel.__new__(acceleration.OpenVINOModel)
