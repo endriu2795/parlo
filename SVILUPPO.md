@@ -81,8 +81,10 @@ scegli un fornitore in **Impostazioni → Assistente**. [Guida all’uso](USO.md
 
 La [CI](.github/workflows/ci.yml) gira sui push a `main` e sulle pull request
 verso `main`. Controlla TypeScript e i test Node e Python su Linux, e i test
-Rust su Windows x64 e macOS (Apple Silicon e Intel). I collaudi desktop,
-audio, GPU e del portachiavi di sistema si eseguono a mano.
+Rust su Windows x64. I test Python per voce, video e documenti si eseguono
+a parte con le dipendenze dei rispettivi componenti. Il collaudo dell’app
+desktop, le prove con audio e GPU reali e il test del portachiavi di
+sistema si eseguono sulla macchina di prova.
 
 Usa dati sintetici per le prove e committa solo codice e documentazione.
 Non aggiungere `.local-data`, `.tools`, runtime preparati, registrazioni,
