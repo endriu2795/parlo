@@ -79,65 +79,83 @@ scegli un fornitore in **Impostazioni → Assistente**. [Guida all’uso](USO.md
 
 ## Contribuire e controllare le modifiche
 
-La [CI](.github/workflows/ci.yml) gira sui push a `main` e sulle pull request
-verso `main`. Controlla TypeScript e i test Node e Python su Linux, e i test
-Rust su Windows x64. I test Python per voce, video e documenti si eseguono
-a parte con le dipendenze dei rispettivi componenti. Il collaudo dell’app
-desktop, le prove con audio e GPU reali e il test del portachiavi di
-sistema si eseguono sulla macchina di prova.
-
 Usa dati sintetici per le prove e committa solo codice e documentazione.
 Non aggiungere `.local-data`, `.tools`, runtime preparati, registrazioni,
 trascrizioni, credenziali o chiavi. Le modifiche contribuite al codice del
 progetto seguono [GPL-3.0-only](LICENSE).
 
-Esegui soltanto i controlli pertinenti. Per modifiche TypeScript:
+## Suite di test
 
-```sh
-npx tsc --noEmit
-```
+I test funzionali verificano il comportamento atteso. Se un test fallisce,
+controlla se la modifica ha introdotto una regressione o se ha cambiato
+intenzionalmente il risultato atteso. Nel primo caso correggi il codice.
+Nel secondo aggiorna il test e aggiungi un caso se la modifica introduce
+un comportamento nuovo.
 
-Per modifiche Python esegui i test unitari del modulo interessato; per Rust
-usa i test mirati da `src-tauri`. Compilare l'app, creare un installer e
-pubblicare una release sono operazioni distinte.
+### Test eseguiti in CI
 
-### Collaudi eseguiti
+La [CI](.github/workflows/ci.yml) gira sui push a `main` e sulle pull request
+verso `main`. I job partono in parallelo. Tempi e risultati sono nei
+[log di GitHub Actions](https://github.com/endriu2795/parlo/actions/workflows/ci.yml).
 
-Le prove usano dati di esempio e passaggi fissi. Le misure di durata dipendono
-dal PC. Il profiling riguarda solo le prestazioni, come lo scroll dell’archivio.
+- **TypeScript e Node su Linux.** TypeScript controlla i tipi del frontend.
+  In `scripts`, `test-archive-dates.mjs` verifica intervalli e fusi orari,
+  `test-transcript-navigation.mjs` la selezione dei passaggi,
+  `test-annotations.mjs` il disegno e il ridimensionamento,
+  `test-file-links.mjs` i riferimenti ai file e
+  `test-source-mentions.mjs` le menzioni e le fonti condivise.
+- **Rust su Windows x64.** Il job compila il binario dei test. I test
+  verificano ricerca, paginazione, SQLite, condivisione, coda e annullamento,
+  recupero dopo un arresto, permessi degli strumenti, chat in streaming con
+  un server di prova, logica audio e video e aggiornamenti.
+- **Motore Python su Linux.** `test_worker` verifica il raggruppamento delle
+  parole, `test_mixing` il mix e l’eco, `test_final` la trascrizione finale
+  e il recupero dagli errori, `test_transcript_quality` le ripetizioni,
+  `test_dictionary` i suggerimenti lessicali, `test_acceleration` la scelta
+  CPU/GPU e `test_web_tools` la ricerca con risposte simulate.
+- **Script Python su Linux.** `test-download-network.py` prova la ripresa
+  di un download, `test-install-engine.py` l’installazione e il ripristino
+  del runtime, `test-model-setup.py` la scelta e il download dei modelli,
+  `test-prepare-runtime.py` l’integrità dei pacchetti e
+  `test-local-release.py` la preparazione e pubblicazione simulata della
+  release. I tre casi del bundle di dipendenze Windows si eseguono su Windows.
 
-- **App Windows — `scripts/desktop-qa.cjs`.** Apre PARLO in WebView2 con 480 call
-  sintetiche. Carica e scorre 460 righe, cerca una call fuori dalle pagine già
-  caricate e verifica che la sidebar monti solo le righe vicine a quelle visibili.
-  Registra un campione pubblico dall’audio di sistema, annulla l’elaborazione e
-  preme «Riprova» fino a ottenere la trascrizione. Verifica anche che un file
-  condiviso cambi mentre è aperto e che la chat riceva una risposta in streaming.
-  Il server HTTP di test è avviato dallo script e controlla se la trascrizione
-  entra nella richiesta prima e dopo averla esclusa dalle fonti.
-- **Audio Windows e Whisper.** `scripts/audio-input-check.ps1` controlla il
-  microfono predefinito. Il test Rust `default_devices_deliver_wasapi_packets`
-  conta i campioni del microfono e verifica un tono di 997 Hz nell’audio di
-  sistema. Va avviato esplicitamente con `--ignored` mentre il tono è in
-  riproduzione. `scripts/benchmark-engine.py --minutes 0.75` usa il runtime Python
-  del progetto per trascrivere 45 secondi di parlato pubblico con eco sintetico.
-  Richiede il modello locale e il campione `.tools/engine/benchmark.wav`.
-- **Test di comportamento.** I test Rust in `db.rs`, `processing.rs`, `main.rs`,
-  `sharing.rs`, `audio.rs`, `audio_windows.rs`, `engine_child.rs` e `video.rs`
-  verificano ricerca e paginazione, coda e annullamento, ripristino e scadenza,
-  condivisione, gestione delle interruzioni audio e selezione video.
-  I test Python `test_worker`, `test_mixing`, `test_final` e
-  `test_transcript_quality` verificano mix, eco, pipeline e qualità del testo.
-  Con `node --test` si possono eseguire i file `scripts/test-archive-dates.mjs`,
-  `test-transcript-navigation.mjs`, `test-annotations.mjs` e
-  `test-source-mentions.mjs` per filtri, navigazione, disegno e fonti della chat.
+### Test automatici da avviare quando servono
 
-È stato fatto anche un confronto in Edge headless con backend simulato su 500
-call locali e 500 condivise. Il collaudo nel repository da usare per lo scroll
-della finestra desktop è `scripts/desktop-qa.cjs`.
+- **Documenti, video e voce.** `test_document_tools` prova Word, Excel,
+  PDF e slideshow. `test_video` prova annotazioni, recupero dagli errori di
+  cattura e sincronizzazione audio-video. `test_speech_tools` prova sintesi
+  vocale, decodifica e allineamento. `test_qwen_speech` prova suddivisione
+  del testo, riuso del modello e gestione CPU/CUDA con simulazioni.
+  Si eseguono da `engine` con `python -m unittest` seguito dal nome del
+  modulo, usando un Python con le dipendenze del componente.
+  La CI esegue solo le suite Python elencate sopra. Documenti e voce
+  richiedono anche librerie Office/PDF, FFmpeg o Piper.
+- **Interfaccia nel browser.** `npm run test:ui` usa Playwright e un backend
+  simulato per verificare archivio, filtri, scorciatoie, impostazioni e
+  indicatore di registrazione. Richiede un browser predisposto per Playwright.
+- **Runtime, audio e prestazioni.** I test nativi del runtime Whisper e
+  `scripts/benchmark-engine.py` richiedono il runtime e un modello locale.
+  Il benchmark usa un campione pubblico. `scripts/audio-input-check.ps1`
+  controlla il microfono predefinito. Il test Rust
+  `default_devices_deliver_wasapi_packets` si avvia con `--ignored` mentre
+  è in riproduzione un tono di 997 Hz. Il test del portachiavi usa quello
+  della macchina di prova.
 
-Per ripetere il collaudo desktop servono **Windows con WebView2, Node 22.13 o
-successivo, dipendenze npm, runtime Whisper locale con modello e campione WAV,
-e un’uscita audio predefinita**. Dalla radice del progetto, in PowerShell:
+#### Collaudo automatico dell’app Windows
+
+`scripts/desktop-qa.cjs` ripete scenari fissi. Genera 480 call sintetiche
+con titoli e date prestabiliti e assegna a ogni call un identificativo
+casuale. Lo script definisce le azioni e i risultati attesi. Verifica paginazione
+e ricerca oltre le pagine caricate, scorre l’archivio e misura i tempi dei
+fotogrammi. Controlla anche la registrazione di un campione pubblico,
+l’annullamento e «Riprova», l’aggiornamento di un file condiviso e la chat
+in streaming con la trascrizione prima inclusa e poi esclusa.
+
+La prova completa richiede **Windows con WebView2, Node 22.13 o successivo,
+dipendenze npm, runtime Whisper locale con modello e campione WAV e
+un’uscita audio predefinita**. Dalla radice del progetto, in PowerShell,
+compila il binario di prova e avvia lo script.
 
 ```powershell
 $env:TAURI_CONFIG = '{"identifier":"app.parlo.desktop.qa","plugins":{"updater":null}}'
@@ -147,18 +165,31 @@ node scripts/desktop-qa.cjs
 ```
 
 Il campione `.tools/engine/benchmark.wav` è `samples/jfk.wav` di whisper.cpp
-v1.8.3. Lo prepara la configurazione dell’accelerazione. Se manca, puoi
-scaricarlo con lo stesso indirizzo usato da `scripts/setup-accelerator.py`:
+v1.8.3. Lo prepara la configurazione dell’accelerazione. Se manca, scaricalo
+con il comando seguente.
 
 ```powershell
 Invoke-WebRequest 'https://raw.githubusercontent.com/ggml-org/whisper.cpp/v1.8.3/samples/jfk.wav' -OutFile .tools/engine/benchmark.wav
 ```
 
-Lo script avvia il server di sviluppo e usa un archivio temporaneo. Il server
-HTTP di test risponde sullo stesso PC e non richiede account, credenziali o un
-endpoint AI esterno. `--recording-only` esegue solo registrazione, annullamento
-e riprova. `--chat-only` prova solo la cartella condivisa e la chat, senza
-usare il modello Whisper o riprodurre audio.
+Lo script usa un archivio temporaneo e un server HTTP locale per la chat.
+`--recording-only` esegue registrazione, annullamento e riprova.
+`--chat-only` prova la cartella condivisa e la chat e si può eseguire senza
+Whisper e senza uscita audio.
+
+### Collaudi manuali
+
+- **Installazione e aggiornamento.** Installa il pacchetto, avvia l’app e
+  verifica l’aggiornamento da una versione precedente quando disponibile.
+- **Registrazione.** Sul Mac verifica i permessi di sistema al primo avvio.
+  Prova microfono, audio di sistema, cambio del dispositivo e cattura dello
+  schermo con annotazioni. Verifica qualità e tempi della trascrizione con il
+  modello e la GPU disponibili.
+- **Condivisione.** Se usi Google Drive per la cartella condivisa, pubblica
+  una trascrizione di prova e verifica che compaia sull’altro computer.
+- **Assistente.** Prova Ollama su una trascrizione lunga e verifica tempi e
+  qualità della risposta. Se usi un endpoint personalizzato, prova una
+  richiesta sul tuo server.
 
 Per ridistribuire il pacchetto consulta le
 [licenze dei componenti](THIRD_PARTY_NOTICES.md).
