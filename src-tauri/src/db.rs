@@ -606,6 +606,7 @@ mod tests {
             (serde_json::json!({"ollama_web_search":true}),false),
             (serde_json::json!({"ollama_web_search":false}),false),
             (serde_json::json!({"ollama_web_search":true,"ollama_web_policy_version":1}),true),
+            (serde_json::json!({"ollama_web_search":true,"ollama_web_policy_version":1,"ollama_tools_enabled":false}),false),
         ] {
             conn.execute("INSERT OR REPLACE INTO settings(id,json) VALUES(1,?1)",[saved.to_string()]).unwrap();
             let settings=super::get_settings(&conn).unwrap();

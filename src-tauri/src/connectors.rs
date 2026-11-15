@@ -32,7 +32,6 @@ pub fn tool_prefix(server: &str) -> String {
 }
 pub fn tool_enabled(settings: &Settings, request: &Value) -> bool {
     let tool = request["tool_name"].as_str().unwrap_or_default();
-    if settings.assistant_provider == "ollama" && !settings.ollama_tools_enabled { return false; }
     if settings.assistant_provider == "custom" {
         return settings.custom_chat.tools_enabled && crate::custom_endpoint::is_tool(tool);
     }

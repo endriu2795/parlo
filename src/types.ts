@@ -45,8 +45,6 @@ export type Settings = {
   ollama_context_length?: number;
   ollama_context_default_version?: number;
   ollama_web_search?: boolean;
-  ollama_tools_enabled?: boolean;
-  ollama_full_tools?: boolean;
   ollama_web_policy_version?: number;
   ollama_trusted_tools?: string[];
   gemini_bin?: string;

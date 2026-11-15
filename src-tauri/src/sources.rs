@@ -461,10 +461,6 @@ fn inline_text(inventory: &Inventory, detail: &model::Detail) -> String {
     text
 }
 
-pub fn text_context(state: &AppState, detail: &model::Detail) -> Result<String> {
-    Ok(inline_text(&inventory(state, detail)?, detail))
-}
-
 // Text is inline; other files are read on demand by the provider's tools.
 pub fn context(state: &AppState, detail: &model::Detail) -> Result<String> {
     let inventory = inventory(state, detail)?;

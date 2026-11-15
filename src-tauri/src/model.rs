@@ -92,8 +92,6 @@ pub struct Settings {
     pub ollama_context_length: u32,
     pub ollama_context_default_version: u8,
     pub ollama_web_search: bool,
-    pub ollama_tools_enabled: bool,
-    pub ollama_full_tools: bool,
     pub ollama_web_policy_version: u8,
     pub ollama_trusted_tools: Vec<String>,
     pub codex_bin: String,
@@ -174,8 +172,6 @@ impl Default for Settings {
             ollama_context_length: 32768,
             ollama_context_default_version: 1,
             ollama_web_search: false,
-            ollama_tools_enabled: true,
-            ollama_full_tools: false,
             ollama_web_policy_version: 1,
             ollama_trusted_tools: vec![],
             codex_bin: crate::codex_runtime::installed(&engine).map(|p|p.to_string_lossy().into_owned()).unwrap_or_else(||"codex".into()),
@@ -265,7 +261,9 @@ impl Settings {
     }
     pub fn upgrade_ollama_web_policy(&mut self, saved: &serde_json::Value) {
         // The previous default enabled search without consent to WebFetch's domain check.
-        if saved["ollama_web_policy_version"].as_u64().unwrap_or(0) < 1 {
+        if saved["ollama_web_policy_version"].as_u64().unwrap_or(0) < 1
+            || saved["ollama_tools_enabled"].as_bool() == Some(false)
+        {
             self.ollama_web_search = false;
         }
         self.ollama_web_policy_version = 1;

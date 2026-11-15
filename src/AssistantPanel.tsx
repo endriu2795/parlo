@@ -207,7 +207,7 @@ export default function AssistantPanel({
     setCatalog(null);
     if (desktop && auth?.logged_in) {
       void loadModels();
-      if (connectorsEnabled || (provider === "ollama" && settings?.ollama_tools_enabled !== false && (settings?.tts_enabled || settings?.ollama_web_search === true))) void loadConnectors();
+      if (connectorsEnabled || (provider === "ollama" && (settings?.tts_enabled || settings?.ollama_web_search === true))) void loadConnectors();
     } else {
       setCatalog(null);
       setConnectors([]);
@@ -221,13 +221,13 @@ export default function AssistantPanel({
     settings?.codex_bin, settings?.gemini_bin, settings?.ollama_server_url,
     provider,
     connectorsEnabled,
-    settings?.tts_enabled, settings?.ollama_web_search, settings?.ollama_tools_enabled,
+    settings?.tts_enabled, settings?.ollama_web_search,
     auth?.logged_in,
   ]);
   useEffect(() => {
     if (pinned.current && feed.current)
       feed.current.scrollTop = feed.current.scrollHeight;
-  }, [detail.messages.length, answer, activity]);
+  }, [detail.messages.length, answer, activity, error]);
   useEffect(() => {
     setPrompt(draftByCall.current.get(detail.call.id) || "");
     setPendingPrompt(null);
@@ -509,9 +509,9 @@ export default function AssistantPanel({
               </button>
             </div>
           )}
-          {(error || authError || auth?.error) && (
+          {(authError || auth?.error) && (
             <div role="alert" className="chat-info">
-              {error || authError || auth?.error}
+              {authError || auth?.error}
             </div>
           )}
           {!detail.messages.length && !active && !sending && <ChatEmpty ready={ready} onSend={prompt => void send(prompt)} />}
@@ -570,10 +570,13 @@ export default function AssistantPanel({
               <span>
                 {currentPermission
                   ? (["AskUserQuestion", "request_user_input"].includes(currentPermission.tool) ? t("In attesa delle tue risposte…") : t("In attesa del tuo consenso…"))
-                  : t("{0} sta elaborando la richiesta…", providerLabel)}
+                  : provider === "ollama" && !activity?.entries.some(entry => entry.kind === "tool" || entry.kind === "reasoning" || isChatText(entry))
+                    ? t("In attesa della prima risposta di Ollama…")
+                    : t("{0} sta elaborando la richiesta…", providerLabel)}
               </span>
             </div>
           )}
+          {error && <div role="alert" className="chat-info">{error}</div>}
         </div>
         {!atBottom && (
           <button className="scroll-latest" onClick={scrollBottom}>

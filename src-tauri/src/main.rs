@@ -460,7 +460,7 @@ fn save_settings(app: tauri::AppHandle, state: State<Shared>, mut settings: Sett
     settings.ollama_server_trusted_tools = if settings.ollama_server_url == old.ollama_server_url {
         old.ollama_server_trusted_tools.clone()
     } else { vec![] };
-    if status.chat_busy && (settings.ollama_model != old.ollama_model || settings.ollama_context_length != old.ollama_context_length || settings.ollama_server_url != old.ollama_server_url || settings.ollama_tools_enabled != old.ollama_tools_enabled || settings.ollama_full_tools != old.ollama_full_tools) { return Err("Attendi la risposta prima di cambiare le impostazioni Ollama.".into()); }
+    if status.chat_busy && (settings.ollama_model != old.ollama_model || settings.ollama_context_length != old.ollama_context_length || settings.ollama_server_url != old.ollama_server_url || settings.ollama_web_search != old.ollama_web_search) { return Err("Attendi la risposta prima di cambiare le impostazioni Ollama.".into()); }
     if status.chat_busy && settings.assistant_provider != old.assistant_provider { return Err("Attendi la risposta prima di cambiare fornitore AI.".into()); }
     if status.chat_busy && (settings.custom_chat.url != old.custom_chat.url
         || settings.custom_chat.model != old.custom_chat.model

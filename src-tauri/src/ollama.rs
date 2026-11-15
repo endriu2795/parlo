@@ -13,10 +13,6 @@ use std::{io::Read, process::Command, time::Duration};
 pub const BASE_URL: &str = "http://127.0.0.1:11434";
 const RESPONSE_LIMIT: u64 = 4 * 1024 * 1024;
 
-pub(crate) fn uses_full_tools(settings: &Settings) -> bool {
-    settings.ollama_full_tools || !settings.ollama_server_url.trim().is_empty()
-}
-
 pub(crate) fn chat_error(diagnostic: &str, remote: bool) -> String {
     use crate::locale::tr;
     let error = diagnostic.to_ascii_lowercase();
@@ -27,11 +23,17 @@ pub(crate) fn chat_error(diagnostic: &str, remote: bool) -> String {
             tr("PARLO non riesce a collegarsi a Ollama. Avvia Ollama sul computer e riprova, oppure cambia fornitore.", "PARLO could not connect to Ollama. Start Ollama on this computer and try again, or switch providers.")
         }.into();
     }
-    if ["timeout", "timed out", "etimedout"].iter().any(|text| error.contains(text)) {
-        return tr("Ollama non ha risposto in tempo. Riprova con un modello più leggero o un contesto più breve.", "Ollama did not respond in time. Try a smaller model or a shorter context.").into();
+    if error.contains("first response timeout") {
+        return tr("Ollama non ha iniziato a rispondere entro 10 minuti. Riprova con meno fonti attive.", "Ollama did not start responding within 10 minutes. Try again with fewer active sources.").into();
+    }
+    if ["timeout", "timed out", "etimedout", "deadline exceeded"].iter().any(|text| error.contains(text)) {
+        return tr("Ollama ha superato il tempo di attesa. Riprova con meno fonti attive.", "Ollama timed out. Try again with fewer active sources.").into();
     }
     if ["out of memory", "requires more system memory", "not enough memory"].iter().any(|text| error.contains(text)) {
         return tr("Ollama ha esaurito la memoria. Prova un modello più leggero o riduci il contesto.", "Ollama ran out of memory. Try a smaller model or reduce the context.").into();
+    }
+    if ["context_length_exceeded", "context length exceeded", "prompt is too long", "input length exceeds"].iter().any(|text| error.contains(text)) {
+        return tr("La richiesta supera il contesto di Ollama. Aumenta il contesto disponibile o disattiva qualche fonte.", "The request exceeds Ollama’s context window. Increase the available context or turn off some sources.").into();
     }
     if error.contains("unauthorized") || error.contains("forbidden") {
         return tr("Il server Ollama ha rifiutato l’accesso. Verifica la chiave e i permessi.", "The Ollama server denied access. Check the API key and permissions.").into();
@@ -193,14 +195,14 @@ pub fn models(server_url: &str) -> Result<Catalog> {
     Server::configured(server_url)?.models()
 }
 
-fn validate_details(value: &Value, require_tools: bool) -> Result<()> {
+fn validate_details(value: &Value) -> Result<()> {
     if remote(value) {
         return Err(
             "Questo modello Ollama usa un servizio remoto. Seleziona un modello locale installato."
                 .into(),
         );
     }
-    if require_tools && !value["capabilities"]
+    if !value["capabilities"]
         .as_array()
         .is_some_and(|caps| caps.iter().any(|cap| cap == "tools"))
     {
@@ -217,7 +219,7 @@ fn context_model(name: &str, context: u32) -> String {
     format!("parlo-local/{}:ctx{context}", &hash[..20])
 }
 fn context_request(settings: &Settings, details: &Value) -> Result<Value> {
-    validate_details(details, settings.ollama_tools_enabled)?;
+    validate_details(details)?;
     let context = settings.ollama_context_length;
     if context < 8192 {
         return Err("Dimensione del contesto Ollama non valida.".into());
@@ -274,7 +276,7 @@ fn ensure_model_on(settings: &Settings, server: &Server) -> Result<String> {
     }
     let details = server.request("/api/show", Some(json!({"model": name})))?;
     if !server.local {
-        validate_details(&details, settings.ollama_tools_enabled)?;
+        validate_details(&details)?;
         return Ok(name.clone());
     }
     let body = context_request(settings, &details)?;
@@ -362,7 +364,7 @@ pub async fn ollama_model_context(window: tauri::WebviewWindow, model: String) -
     tauri::async_runtime::spawn_blocking(move || {
         if !valid_model(&model) || cloud_name(&model) || is_context_model(&model) {return Err("Scegli un modello locale installato.".into());}
         let details=Server::configured("")?.request("/api/show",Some(json!({"model":model})))?;
-        validate_details(&details, false)?;
+        validate_details(&details)?;
         Ok(details["model_info"].as_object().and_then(|info| info.iter()
             .filter(|(key,_)| key.ends_with(".context_length")).filter_map(|(_,value)| value.as_u64()).max()))
     }).await.map_err(|e|e.to_string())?
@@ -505,15 +507,14 @@ mod tests {
     }
     #[test]
     fn ollama_preflight_rejects_remote_aliases_and_models_without_tools() {
-        assert!(validate_details(&json!({"capabilities":["completion","tools"]}), true).is_ok());
-        assert!(validate_details(&json!({"capabilities":["completion"]}), true).is_err());
-        assert!(validate_details(&json!({"capabilities":["completion"]}), false).is_ok());
+        assert!(validate_details(&json!({"capabilities":["completion","tools"]})).is_ok());
+        assert!(validate_details(&json!({"capabilities":["completion"]})).is_err());
         assert!(validate_details(
-            &json!({"capabilities":["tools"],"remote_host":"https://ollama.com"}), true
+            &json!({"capabilities":["tools"],"remote_host":"https://ollama.com"})
         )
         .is_err());
         assert!(
-            validate_details(&json!({"capabilities":["tools"],"remote_model":"cloud-model"}), true)
+            validate_details(&json!({"capabilities":["tools"],"remote_model":"cloud-model"}))
                 .is_err()
         );
     }
@@ -582,7 +583,14 @@ mod tests {
             &json!({"tool_name":"Read"})
         ));
         for tool in ["Bash", "PowerShell"] {
-            assert!(crate::connectors::tool_enabled(&effective, &json!({"tool_name":tool})));
+            let request = json!({"tool_name":tool});
+            assert!(crate::connectors::eligible_tool(&effective, &request));
+            assert!(!crate::connectors::tool_trusted(&effective, &request));
+            let mut allowed = effective.clone();
+            allowed.trusted_tools.push(tool.into());
+            assert!(crate::connectors::tool_trusted(&allowed, &request));
+            allowed.trusted_tools.retain(|name| name != tool);
+            assert!(!crate::connectors::tool_trusted(&allowed, &request));
         }
         assert!(!settings.ollama_web_search);
         for tool in ["WebFetch", "mcp__parlo_web__WebSearch"] {
@@ -605,7 +613,6 @@ mod tests {
     fn ollama_harness_keeps_full_tools_stdio_permissions_and_explicit_tts_mcp() {
         let settings = Settings {
             assistant_provider: "ollama".into(),
-            ollama_full_tools: true,
             ollama_model: "local:small".into(),
             claude_bin: std::env::current_exe()
                 .unwrap()

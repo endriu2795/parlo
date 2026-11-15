@@ -1,4 +1,9 @@
 {
+  "Bash e PowerShell chiedono conferma in chat. Puoi revocare qui i consensi permanenti.": "Bash and PowerShell ask for confirmation in chat. You can revoke permanent permissions here.",
+  "Ricerca e apertura di pagine web": "Search and open web pages",
+  "Attivando questa opzione, le ricerche passano da DuckDuckGo e WebFetch invia i domini ad Anthropic per un controllo di sicurezza.": "Searches go through DuckDuckGo. WebFetch sends domains to Anthropic for a security check.",
+  "Stima del testo basata sui caratteri. Gli strumenti possono occupare altro spazio e la barra tiene un margine per la risposta.": "Text estimate based on character count. Tools can take up additional space, and the bar reserves room for the answer.",
+  "Contesto stimato": "Estimated context",
   ", avvialo e installa un modello che supporti gli strumenti. Poi aggiorna l’elenco qui sotto.": ", start it, and install a model with tool support. Then refresh the list below.",
   "Collega Telegram": "Connect Telegram",
   "Collegato a @{0}": "Connected to @{0}",
@@ -31,6 +36,7 @@
   "{0} disattivato": "{0} off",
   "{0} fonti": "{0} sources",
   "{0} sta elaborando la richiesta…": "{0} is processing your request…",
+  "In attesa della prima risposta di Ollama…": "Waiting for Ollama’s first response…",
   "{0} strumenti disponibili": "{0} tools available",
   "{0}: cambia combinazione": "{0}: change shortcut",
   "{0}: riconnessione al dispositivo in corso. La registrazione continua con le altre sorgenti.": "{0}: reconnecting to the device. Recording continues with the other sources.",

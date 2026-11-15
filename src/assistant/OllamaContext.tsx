@@ -42,23 +42,22 @@ export default function OllamaContext({ id, settings, detail, liveSegments, revi
   }, [id]);
 
   const limit = budget?.limit ?? settings?.ollama_context_length ?? 32768;
-  const actual = live.tokens !== null;
-  const toolsEnabled = settings?.ollama_tools_enabled !== false;
+  const actual = live.tokens !== null && (active || !prompt.trim());
   const total = actual ? live.tokens! : budget
     ? budget.input_tokens + Math.ceil(Array.from(prompt.trim()).length / 2) : null;
   const occupied = total === null ? null : total + (budget?.reserved_tokens ?? 4096);
   const over = occupied !== null && occupied > limit;
   const near = occupied !== null && occupied >= limit * 0.85;
   const format = (value: number) => value.toLocaleString(uiLocale);
+  const displayedTotal = total === null ? null : actual ? total : Math.round(total / 100) * 100;
   return <div className={`ollama-context ${over ? "over" : near ? "near" : ""}`}>
     <div className="ollama-context-label" title={actual
       ? t("Token di input comunicati dal backend nell’ultimo passaggio. Per l’avviso si riservano anche 4.096 token per la risposta.")
-      : toolsEnabled ? t("Stima del solo testo: trascrizione, cronologia, istruzioni e domanda. Gli strumenti non sono conteggiati qui; il totale reale compare quando il modello comunica i token. La barra riserva anche 4.096 token per la risposta. La stima non blocca l’invio.") : t("Stima del testo inviato. Gli strumenti sono disattivati. La barra riserva anche 4.096 token per la risposta.")}>
-      <span>{actual ? t("Input ultimo passaggio") : toolsEnabled ? t("Testo stimato · strumenti esclusi") : t("Testo stimato · strumenti disattivati")}</span>
-      <span>{total === null ? t("Limite {0} token", format(limit)) : t("{0}{1} / {2} token", actual ? "" : "≈ ", format(total), format(limit))}</span>
+      : t("Stima del testo basata sui caratteri. Gli strumenti possono occupare altro spazio e la barra tiene un margine per la risposta.")}>
+      <span>{actual ? t("Input ultimo passaggio") : t("Contesto stimato")}</span>
+      <span>{displayedTotal === null ? t("Limite {0} token", format(limit)) : t("{0}{1} / {2} token", actual ? "" : "≈ ", format(displayedTotal), format(limit))}</span>
     </div>
     {occupied !== null && <progress aria-label={actual ? t("Contesto ultimo passaggio con riserva risposta") : t("Testo stimato con riserva risposta")} max={limit} value={Math.min(occupied, limit)} />}
-    {!actual && toolsEnabled && <p>{t("Gli strumenti saranno inclusi nel conteggio reale. La stima non blocca l’invio.")}</p>}
     {error && <p role="status">{t("Stima non disponibile. Puoi comunque inviare la domanda.")}</p>}
     {over ? <p role="alert">{actual ? t("Poco spazio per la risposta nell’ultimo passaggio. La CLI può compattare la cronologia; se il contesto non basta, la richiesta può fallire.") : t("Il testo stimato supera lo spazio disponibile per la risposta. Puoi inviare comunque: la CLI gestisce il contesto e può compattare la cronologia o restituire un errore. PARLO non taglia la trascrizione.")}</p>
       : near && <p role="status">{t("Spazio ridotto per la risposta. Puoi comunque inviare; aumentare il contesto lascia più margine.")}</p>}

@@ -124,25 +124,20 @@ pub fn claude_command(settings: &Settings, directory: &Path) -> Result<Command> 
 pub fn chat_command(settings: &Settings, directory: &Path) -> Result<Command> {
     let effective = settings.connector_settings();
     let settings = &effective;
-    let tools_enabled = settings.assistant_provider != "ollama" || settings.ollama_tools_enabled;
-    let tools = if !tools_enabled {
-        ""
-    } else if settings.assistant_provider != "ollama" || crate::ollama::uses_full_tools(settings) {
-        "default"
-    } else if settings.ollama_web_search {
-        "Read,Write,Edit,Glob,Grep,WebFetch"
+    let ask = if settings.assistant_provider == "ollama" {
+        &["mcp__*", "Bash", "PowerShell"][..]
     } else {
-        "Read,Write,Edit,Glob,Grep"
+        &["mcp__*"][..]
     };
     let mut command = Command::new(executable(&settings.claude_bin)?);
     crate::document_runtime::configure(&mut command);
-    let config = serde_json::json!({"disableAllHooks":true,"disableClaudeAiConnectors":!settings.claude_connectors,"enableArtifact":false,"permissions":{"ask":["mcp__*"]}});
-    command.args(["-p","--verbose","--output-format","stream-json","--include-partial-messages","--tools",tools,"--setting-sources","","--settings",&config.to_string(),"--no-session-persistence","--max-turns","40"])
+    let config = serde_json::json!({"disableAllHooks":true,"disableClaudeAiConnectors":!settings.claude_connectors,"enableArtifact":false,"permissions":{"ask":ask}});
+    command.args(["-p","--verbose","--output-format","stream-json","--include-partial-messages","--tools","default","--setting-sources","","--settings",&config.to_string(),"--no-session-persistence","--max-turns","40"])
         .env("CLAUDE_CODE_DISABLE_AUTO_MEMORY","1").current_dir(directory);
     command.arg("--disable-slash-commands").env("CLAUDE_CODE_ARTIFACT", "0");
     hidden(&mut command);
-    let tts = if tools_enabled { crate::tts::server_config(settings, directory)? } else { None };
-    let web = if tools_enabled { crate::web_tools::server_config(settings)? } else { None };
+    let tts = crate::tts::server_config(settings, directory)?;
+    let web = crate::web_tools::server_config(settings)?;
     let mut integrated_servers=serde_json::Map::new();
     if let Some(server)=&tts {integrated_servers.insert(crate::tts::SERVER.into(),server.clone());}
     if let Some(server)=&web {integrated_servers.insert(crate::web_tools::SERVER.into(),server.clone());}
@@ -376,21 +371,16 @@ pub fn transcribe(
     serde_json::from_value(value["segments"].clone()).map_err(|e| e.to_string())
 }
 fn compose_chat_context(state: &AppState, settings: &Settings, detail: &Detail, prompt: &str, documents: &str, create_output: bool) -> Result<(String,String)> {
-    let tools_enabled = settings.assistant_provider != "ollama" || settings.ollama_tools_enabled;
-    let mut context = if tools_enabled { crate::sources::context(state, detail)? } else { crate::sources::text_context(state, detail)? };
-    if tools_enabled && (settings.assistant_provider != "ollama" || crate::ollama::uses_full_tools(settings)) {
-        context.push_str(documents);
-    }
-    let voice_context = if tools_enabled { crate::tts::context(settings) } else { String::new() };
+    let mut context = crate::sources::context(state, detail)?;
+    context.push_str(documents);
+    let voice_context = crate::tts::context(settings);
     if detail.segments.is_empty() {
         context.push_str("\n<stato_trascrizione>La trascrizione non è disponibile per questa richiesta. Rispondi usando la domanda e le fonti abilitate; non inventare contenuti della call e segnala se manca il contesto necessario.</stato_trascrizione>\n");
     } else if detail.call.status != "ready" {
         context.push_str("\n<stato_trascrizione>Il testo della call è provvisorio e incompleto: questa richiesta contiene solo quanto disponibile al momento dell’invio. Non conosci le frasi successive. Le nuove domande riceveranno il testo aggiornato.</stato_trascrizione>\n");
     }
-    if tools_enabled {
-        let output = crate::chat_files::directory(state, &detail.call.id, create_output)?;
-        context.push_str(&format!("\n<file_output>\nLa cartella di lavoro e di output locale di questa call è {}. Quando l’utente chiede un file, crealo realmente con gli strumenti locali in questa cartella, usando un nome leggibile e distinto dai file esistenti. I file finali qui salvati compaiono nei Files della call e sono scaricabili. Usa la sottocartella .work per script temporanei e dipendenze. Puoi usare come reference le fonti abilitate, senza modificare i template originali. Non usare pubblicazione online o Artifacts come sostituti di un file locale. Per formati come PPTX verifica gli strumenti e le librerie necessari: se mancano o la creazione fallisce, dichiaralo senza inventare un risultato. Nella risposta collega i file reali tramite Markdown e percorso assoluto.\n</file_output>\n",serde_json::to_string(&output.to_string_lossy()).map_err(|e|e.to_string())?));
-    }
+    let output = crate::chat_files::directory(state, &detail.call.id, create_output)?;
+    context.push_str(&format!("\n<file_output>\nLa cartella di lavoro e di output locale di questa call è {}. Quando l’utente chiede un file, crealo realmente con gli strumenti locali in questa cartella, usando un nome leggibile e distinto dai file esistenti. I file finali qui salvati compaiono nei Files della call e sono scaricabili. Usa la sottocartella .work per script temporanei e dipendenze. Puoi usare come reference le fonti abilitate, senza modificare i template originali. Non usare pubblicazione online o Artifacts come sostituti di un file locale. Per formati come PPTX verifica gli strumenti e le librerie necessari: se mancano o la creazione fallisce, dichiaralo senza inventare un risultato. Nella risposta collega i file reali tramite Markdown e percorso assoluto.\n</file_output>\n",serde_json::to_string(&output.to_string_lossy()).map_err(|e|e.to_string())?));
     // A warm ACP session already owns the conversation. Send only fresh context
     // and the new question on subsequent turns, without duplicating its history.
     let current_context = if settings.assistant_provider == "gemini" {
@@ -440,11 +430,7 @@ pub fn chat(app: &AppHandle, state: &Arc<AppState>, id: &str, prompt: &str) -> R
     if settings.assistant_provider == "custom" {
         return crate::custom_endpoint::chat(app, state, id, prompt, &settings, &detail);
     }
-    let documents = if settings.assistant_provider == "ollama" && (!settings.ollama_tools_enabled || !crate::ollama::uses_full_tools(&settings)) {
-        String::new()
-    } else {
-        crate::document_runtime::context(app)
-    };
+    let documents = crate::document_runtime::context(app);
     let (context,current_context)=compose_chat_context(state,&settings,&detail,prompt,&documents,true)?;
     if ollama_model.is_none() && context.len() > 500000 {
         return Err("Questa conversazione supera il limite di contesto della prima versione. Esporta il Markdown per elaborarla in parti.".into());
@@ -509,9 +495,11 @@ pub fn chat(app: &AppHandle, state: &Arc<AppState>, id: &str, prompt: &str) -> R
     let mut initial_model = None;
     let mut failure = None;
     let mut completed = false;
-    let idle_limit = Duration::from_secs(300);
+    let mut awaiting_ollama = ollama_model.is_some();
     let mut last_event = Instant::now();
     while !cancelled.load(Ordering::SeqCst) {
+        // A long prompt can take minutes to process before the first model event.
+        let idle_limit = Duration::from_secs(if awaiting_ollama { 600 } else { 300 });
         let value = match events.recv_timeout(Duration::from_millis(250)) {
             Ok(Ok(value)) => value,
             Ok(Err(e)) => {
@@ -520,13 +508,16 @@ pub fn chat(app: &AppHandle, state: &Arc<AppState>, id: &str, prompt: &str) -> R
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
             Err(mpsc::RecvTimeoutError::Timeout) if ollama_model.is_some() && last_event.elapsed() >= idle_limit => {
-                failure = Some(crate::ollama::chat_error("timeout", !settings.ollama_server_url.trim().is_empty()));
+                failure = Some(if awaiting_ollama { "first response timeout" } else { "timeout" }.into());
                 break;
             }
             Err(mpsc::RecvTimeoutError::Timeout) => continue,
         };
         state.chat_control.observe(app, &value);
         if ollama_model.is_some() {
+            if value["type"] == "assistant" || value["type"] == "stream_event" {
+                awaiting_ollama = false;
+            }
             if let Some(update)=crate::ollama::context_update(id,&value) {
                 let _=app.emit("ollama-context-status",update);
             }
@@ -585,7 +576,11 @@ pub fn chat(app: &AppHandle, state: &Arc<AppState>, id: &str, prompt: &str) -> R
                 }
             }
             if value["is_error"].as_bool().unwrap_or(false) {
-                failure = Some(result_error(&value));
+                failure = Some(if ollama_model.is_some() {
+                    format!("{}\n{}", value["result"].as_str().unwrap_or_default(), value["errors"])
+                } else {
+                    result_error(&value)
+                });
             } else if let Some(text) = value["result"].as_str() {
                 answer = text.into();
             }
@@ -812,29 +807,18 @@ mod tests {
             claude_bin:std::env::current_exe().unwrap().to_string_lossy().into_owned(),..Default::default()};
         let command=chat_command(&settings,Path::new(".")).unwrap();
         let args=command.get_args().map(|s|s.to_string_lossy().into_owned()).collect::<Vec<_>>();
-        assert!(args.windows(2).any(|s|s==["--tools","Read,Write,Edit,Glob,Grep"]));
+        assert!(args.windows(2).any(|s|s==["--tools","default"]));
+        let config = args.windows(2).find(|args| args[0] == "--settings").unwrap();
+        let config: serde_json::Value = serde_json::from_str(&config[1]).unwrap();
+        assert_eq!(config["permissions"]["ask"], serde_json::json!(["mcp__*", "Bash", "PowerShell"]));
         assert!(command.get_envs().any(|(key,value)|key=="CLAUDE_CODE_MAX_CONTEXT_TOKENS" && value==Some(std::ffi::OsStr::new("32768"))));
         assert!(args.windows(2).any(|s|s==["--disallowedTools","WebSearch"]));
         assert!(args.windows(3).any(|s|s==["--disallowedTools","WebSearch","WebFetch"]));
         assert!(!args.iter().any(|s|s=="--bare"));
-        assert!(!args.iter().any(|s|matches!(s.as_str(),"Bash"|"Read"|"Write"|"Edit")));
         let mut enabled=settings.clone(); enabled.ollama_web_search=true;
         let enabled=chat_command(&enabled,Path::new(".")).unwrap();
         assert!(!enabled.get_args().any(|arg|arg=="WebFetch"));
-        assert!(enabled.get_args().any(|arg|arg=="Read,Write,Edit,Glob,Grep,WebFetch"));
-    }
-    #[test]
-    fn ollama_chat_disables_all_tools_when_requested() {
-        let settings = Settings { assistant_provider: "ollama".into(), ollama_model: "qwen3:0.6b".into(),
-            ollama_tools_enabled: false, ollama_web_search: true, tts_enabled: true,
-            claude_bin: std::env::current_exe().unwrap().to_string_lossy().into_owned(), ..Default::default() };
-        let command = chat_command(&settings, Path::new(".")).unwrap();
-        let args = command.get_args().map(|arg| arg.to_string_lossy().into_owned()).collect::<Vec<_>>();
-        assert!(args.windows(2).any(|args| args == ["--tools", ""]));
-        let config = args.windows(2).find(|args| args[0] == "--mcp-config").unwrap();
-        let config: serde_json::Value = serde_json::from_str(&config[1]).unwrap();
-        assert!(config["mcpServers"].as_object().unwrap().is_empty());
-        assert!(!crate::connectors::eligible_tool(&settings, &serde_json::json!({"tool_name":"Bash"})));
+        assert!(enabled.get_args().any(|arg|arg=="default"));
     }
     #[test]
     fn disabling_connectors_keeps_standard_tools_available() {

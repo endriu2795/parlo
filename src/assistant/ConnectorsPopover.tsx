@@ -55,9 +55,8 @@ export default function ConnectorsPopover({ config, settings, connectors, loadin
         <p>{provider === "ollama" ? t("Strumenti dell’app collegati alla chat.") : t("Scegli gli MCP da usare nelle chat di PARLO.")}</p>
         {loading && <p>{t("Verifica dei connettori…")}</p>}
         {shownError && <p role="alert">{shownError}</p>}
-        {!enabled && (
-          <p>{provider === "ollama" ? t("File, Bash e PowerShell su Windows sono strumenti della CLI. Ricerca e apertura delle pagine sono disattivate di default e si abilitano in Impostazioni → Assistente → Strumenti web con Ollama, con il dettaglio dei dati inviati online. La voce si configura separatamente. I connettori degli account cloud sono esclusi.")
-            : t("I connettori sono disattivati nelle impostazioni.")}</p>
+        {!enabled && provider !== "ollama" && (
+          <p>{t("I connettori sono disattivati nelle impostazioni.")}</p>
         )}
         {!loading && !connectors.length && !shownError && enabled && (
           <p>
@@ -102,7 +101,9 @@ export default function ConnectorsPopover({ config, settings, connectors, loadin
           </button>
         )}
         <p className="connector-note">
-          {provider === "gemini"
+          {provider === "ollama"
+            ? t("Bash e PowerShell chiedono conferma in chat. Puoi revocare qui i consensi permanenti.")
+            : provider === "gemini"
             ? t("La scelta viene ricordata. Le operazioni che richiedono consenso mostrano una conferma nella chat.")
             : t("La scelta viene ricordata. Gli strumenti richiedono il tuo consenso, salvo quelli che hai consentito sempre.")}
         </p>

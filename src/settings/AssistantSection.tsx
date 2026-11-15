@@ -65,7 +65,7 @@ function OllamaModels({ draft, update, busy }: Pick<SectionProps, "draft" | "upd
       {t("Per iniziare") + " "}<a href="https://ollama.com/download/" onClick={event => {
         event.preventDefault();
         void api.ollamaDownload().catch(e => setError(String(e)));
-      }}>{t("scarica Ollama") + " "}<ExternalLink size={11} /></a>{t(", avvialo e installa un modello. Poi aggiorna l’elenco qui sotto.")}
+      }}>{t("scarica Ollama") + " "}<ExternalLink size={11} /></a>{t(", avvialo e installa un modello che supporti gli strumenti. Poi aggiorna l’elenco qui sotto.")}
     </Hint>}
     <Field label={t("Modello Ollama")}>
       <select aria-label={t("Modello Ollama")} value={draft.ollama_model || ""} disabled={busy || loading || !models.length}
@@ -93,18 +93,9 @@ function OllamaModels({ draft, update, busy }: Pick<SectionProps, "draft" | "upd
     </>}
     {error && <Hint tone="error">{error}</Hint>}
     {catalog && !models.length && <Hint>{serverUrl ? t("Nessun modello installato sul server Ollama.") : t("Nessun modello locale per la chat. Scaricalo da Ollama e aggiorna l’elenco (i modelli cloud sono esclusi).")}</Hint>}
-    <Switch label={t("Usa strumenti con Ollama")} checked={draft.ollama_tools_enabled !== false} disabled={busy}
-      onChange={ollama_tools_enabled => update({ollama_tools_enabled})}
-      hint={t("Se disattivi gli strumenti, l’assistente usa trascrizione e note in chat. Lettura di allegati, file generati, ricerca web e voce richiedono gli strumenti.")} />
-    {!serverUrl && draft.ollama_tools_enabled !== false && <Switch
-      label={t("Set completo di strumenti")}
-      hint={t("Aggiunge shell e strumenti avanzati. Il set essenziale include ricerca, lettura e modifica di file e richiede meno tempo prima della risposta.")}
-      checked={draft.ollama_full_tools === true} disabled={busy}
-      onChange={ollama_full_tools => update({ ollama_full_tools })} />}
-    <Switch label={t("Strumenti web con Ollama")} checked={draft.ollama_tools_enabled !== false && draft.ollama_web_search === true} disabled={busy || draft.ollama_tools_enabled === false}
+    <Switch label={t("Ricerca e apertura di pagine web")} checked={draft.ollama_web_search === true} disabled={busy}
       onChange={ollama_web_search => update({ollama_web_search})}
-      hint={t("Disattivati per impostazione predefinita. Attivandoli, le ricerche vengono inviate a DuckDuckGo e le pagine richieste vengono contattate. Prima di aprire una pagina, WebFetch invia il solo dominio ad Anthropic (api.anthropic.com) per un controllo di sicurezza.")} />
-    {draft.ollama_tools_enabled !== false && (serverUrl || draft.ollama_full_tools) && <Hint>{t("Gli strumenti completi della CLI occupano parte del contesto: per call e ricerche prova almeno 32k token, se il modello e la memoria lo consentono.")}</Hint>}
+      hint={t("Attivando questa opzione, le ricerche passano da DuckDuckGo e WebFetch invia i domini ad Anthropic per un controllo di sicurezza.")} />
   </>;
 }
 
@@ -135,18 +126,13 @@ export default function AssistantSection({ draft, update, busy, onManageAccount 
       </Field>
     </Group>
 
-    {provider !== "custom" && <Group>
+    {provider !== "custom" && !ollama && <Group>
       <Advanced label={t("Strumenti e collegamenti")}>
-        {ollama ? <>
-          <Hint>{draft.ollama_tools_enabled !== false ? t("Gli strumenti per i file chiedono conferma in chat. Ricerca e apertura delle pagine dipendono dall’interruttore Strumenti web con Ollama. La voce usa il servizio scelto nella sezione Voce.") : t("Gli strumenti sono disattivati per Ollama.")}</Hint>
-          <Hint>{t("La chat usa Claude Code senza account Claude. Se l’istanza Ollama scelta non risponde, la richiesta si ferma.")}</Hint>
-        </> : <>
           <Switch label={t("Usa i connettori di {0}", codex ? "Codex" : "Claude Code")}
             hint={t("Collegamenti ad altre app (es. Drive, CRM). Scegli quali usare dal pulsante Connettori nella chat.")}
             checked={codex ? draft.codex_connectors !== false : draft.claude_connectors !== false}
             onChange={enabled => update(codex ? { codex_connectors: enabled } : { claude_connectors: enabled })} />
           <Hint>{t("Gli strumenti di base (web, shell, lettura e modifica file) restano disponibili anche senza connettori. Le operazioni sensibili chiedono sempre conferma nella chat.")}</Hint>
-        </>}
       </Advanced>
     </Group>}
   </>;
