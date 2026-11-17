@@ -713,6 +713,54 @@
 .assistant-composer textarea:disabled {
   opacity: 1;
 }
+/* The textarea text is transparent; .composer-highlight draws it underneath with
+   linked-looking mentions. Both layers must share font, padding and wrapping. */
+.assistant-composer .composer-input {
+  position: relative;
+}
+.assistant-composer .composer-input textarea,
+.assistant-composer .composer-highlight {
+  padding: 0 1px 6px;
+  font-size: var(--text-md);
+  line-height: 1.6;
+  letter-spacing: normal;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  scrollbar-gutter: stable;
+}
+.assistant-composer .composer-input textarea {
+  position: relative;
+  z-index: 1;
+  color: transparent;
+  caret-color: var(--text);
+}
+.assistant-composer .composer-input textarea::selection {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.assistant-composer .composer-highlight {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: var(--text);
+  pointer-events: none;
+}
+.assistant-composer .composer-highlight mark {
+  border-radius: 3px;
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  text-underline-offset: 3px;
+}
+.user-bubble .chat-call-mention {
+  border-radius: 3px;
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
 .chat-widget .composer-toolbar {
   display: grid;
   grid-template-columns: 92px minmax(0, 1fr) 26px 32px;

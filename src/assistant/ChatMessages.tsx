@@ -1,10 +1,13 @@
 import { t, uiLocale } from "../i18n";
-import { useState } from "react";
-import { ArrowUpRight, Check, ChevronDown, Copy, FileText, ListChecks, ListTree, MessageCircle, Sparkles } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { ArrowUpRight, AudioLines, Check, ChevronDown, Copy, FileText, ListChecks, ListTree, MessageCircle, Sparkles } from "lucide-react";
 import AssistantIdentity from "../AssistantIdentity";
 import ChatMarkdown from "../ChatMarkdown";
 import SourceMentions from "../ChatSourceMentions";
 import type { ChatSource } from "../types";
+
+/** An archive call offered in the @ list. */
+export type MentionCall = { id: string; title: string; created_at: string; mention: string };
 
 function modelLabel(id: string) {
   return id
@@ -108,7 +111,19 @@ export function ChatEmpty({ ready, onSend }: { ready: boolean; onSend: (prompt: 
 }
 
 /** Autocomplete for "@" mentions in the composer, grouped by source scope. */
-export function MentionList({ options, active, onChoose }: { options: ChatSource[]; active: number; onChoose: (source: ChatSource) => void }) {
+export function MentionList({ options, calls, active, onChoose }: {
+  options: ChatSource[];
+  calls: MentionCall[];
+  active: number;
+  onChoose: (option: ChatSource | MentionCall) => void;
+}) {
+  const option = (index: number, item: ChatSource | MentionCall, icon: ReactNode, detail: string) => (
+    <button key={item.id} id={`source-option-${index}`} type="button" role="option" aria-selected={index === active}
+      onMouseDown={e => e.preventDefault()} onClick={() => onChoose(item)}>
+      {icon}
+      <span>{"name" in item ? item.name : item.title}<small>{detail}</small></span>
+    </button>
+  );
   return (
     <div className="source-mentions" role="listbox" id="source-mentions" aria-label={t("Menziona una fonte")}>
       {(["chat", "shared"] as const).map(scope => {
@@ -116,20 +131,18 @@ export function MentionList({ options, active, onChoose }: { options: ChatSource
         return group.length ? (
           <div key={scope}>
             <strong>{scope === "chat" ? t("Questa chat") : t("Cartella condivisa")}</strong>
-            {group.map(source => {
-              const index = options.indexOf(source);
-              return (
-                <button key={source.id} id={`source-option-${index}`} type="button" role="option" aria-selected={index === active}
-                  onMouseDown={e => e.preventDefault()} onClick={() => onChoose(source)}>
-                  <FileText size={13} />
-                  <span>{source.name}<small>{source.path || t("Nel contesto della call")}</small></span>
-                </button>
-              );
-            })}
+            {group.map(source => option(options.indexOf(source), source, <FileText size={13} />, source.path || t("Nel contesto della call")))}
           </div>
         ) : null;
       })}
-      {!options.length && <p>{t("Nessuna fonte disponibile. Aggiungi file dal pulsante Fonti.")}</p>}
+      {calls.length > 0 && (
+        <div>
+          <strong>{t("Altre call dell’archivio")}</strong>
+          {calls.map((call, index) => option(options.length + index, call, <AudioLines size={13} />,
+            new Date(call.created_at).toLocaleString(uiLocale, { dateStyle: "medium", timeStyle: "short" })))}
+        </div>
+      )}
+      {!options.length && !calls.length && <p>{t("Nessuna fonte disponibile. Aggiungi file dal pulsante Fonti.")}</p>}
     </div>
   );
 }

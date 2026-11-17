@@ -772,6 +772,24 @@ html.capturing-screen .drawing-overlay {
   letter-spacing: .02em;
   line-height: 1;
 }
+/* A docked recorder is easy to ignore: a dead microphone turns it amber and pulses. */
+.recorder-edge-tab.mic-warning,
+.recorder-edge-tab.mic-warning:hover,
+.recorder-edge-tab.mic-warning:active {
+  color: #1d1406;
+  background: #f0a830;
+  border-color: #f0a830;
+  animation: recorder-mic-pulse 1.2s ease-in-out infinite;
+}
+.recorder-edge-tab.mic-warning .recorder-tab-label {
+  color: #1d1406;
+}
+@keyframes recorder-mic-pulse {
+  50% { background: #b86f0c; border-color: #b86f0c; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recorder-edge-tab.mic-warning { animation: none; }
+}
 @media (max-width: 800px) {
   .annotation-toolbar .annotation-interact > span {
     display: none;

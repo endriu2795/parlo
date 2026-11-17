@@ -448,6 +448,10 @@ pub fn chat(app: &tauri::AppHandle, state: &AppState, id: &str, prompt: &str, se
     if include_transcript {
         messages.push(json!({"role":"user","content":format!("Trascrizione di riferimento:\n{}", model::markdown(&detail.call, &detail.segments))}));
     }
+    let cited = crate::sources::cited_calls(state, detail, prompt)?;
+    if !cited.is_empty() {
+        messages.push(json!({"role":"user","content":cited}));
+    }
     if !sources.is_empty() {
         let labels: Vec<_> = sources.iter().enumerate().map(|(index, (name, _))| json!({"source":index,"name":name})).collect();
         messages.push(json!({"role":"user","content":format!("Riferimenti alle fonti testuali abilitate: {}", json!(labels))}));

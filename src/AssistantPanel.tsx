@@ -9,10 +9,11 @@ import { api, desktop } from "./api";
 import { useAssistantAuth } from "./useAssistantAuth";
 import ChatTimeline, { isChatText } from "./ChatTimeline";
 import ChatSources, { useChatSources } from "./ChatSources";
-import { insertMention, matchingSources, mentionQuery } from "./sourceMentions";
+import { callMention, insertMention, matchingSources, mentionBefore, mentionQuery } from "./sourceMentions";
+import ComposerHighlight from "./assistant/ComposerHighlight";
 import OllamaContext from "./assistant/OllamaContext";
 import ConnectorsPopover from "./assistant/ConnectorsPopover";
-import { AssistantReply, ChatEmpty, MentionList, StreamingReply, UserMessage } from "./assistant/ChatMessages";
+import { AssistantReply, ChatEmpty, MentionList, StreamingReply, UserMessage, type MentionCall } from "./assistant/ChatMessages";
 import { providerConfig } from "./assistant/provider";
 import type { AssistantProvider, ChatRun, ChatSource, Connector, Detail, ModelCatalog, Settings, Status, ToolPermission } from "./types";
 
@@ -78,7 +79,28 @@ export default function AssistantPanel({
   const mentionOptions = mention
     ? matchingSources(sources.inventory?.sources || [], mention.query)
     : [];
-  const chooseMention = (source: ChatSource) => {
+  const [callOptions, setCallOptions] = useState<MentionCall[]>([]);
+  const mentionCount = mentionOptions.length + callOptions.length;
+  const mentionAt = (index: number): ChatSource | MentionCall | undefined =>
+    index < mentionOptions.length ? mentionOptions[index] : callOptions[index - mentionOptions.length];
+  // Other archive calls matching the text after @, most recent first.
+  useEffect(() => {
+    if (!mention) { setCallOptions([]); return; }
+    let current = true;
+    const timer = window.setTimeout(() => {
+      api.list({ query: mention.query.trim(), dateFrom: null, dateTo: null, tags: [] }, null, 7)
+        .then(page => {
+          if (!current) return;
+          setCallOptions(page.items
+            .filter(call => call.id !== detail.call.id && call.origin !== "shared_chat")
+            .slice(0, 6)
+            .map(call => ({ id: call.id, title: call.title, created_at: call.created_at, mention: callMention(call) })));
+        })
+        .catch(() => { if (current) setCallOptions([]); });
+    }, 120);
+    return () => { current = false; window.clearTimeout(timer); };
+  }, [mention?.query, detail.call.id]);
+  const chooseMention = (source: ChatSource | MentionCall) => {
     const cursor = composer.current?.selectionStart ?? prompt.length;
     const result = insertMention(
       prompt,
@@ -597,7 +619,9 @@ export default function AssistantPanel({
           void send(prompt);
         }}
       >
-        {mention && !sourcesOpen && <MentionList options={mentionOptions} active={mentionIndex} onChoose={chooseMention} />}
+        {mention && !sourcesOpen && <MentionList options={mentionOptions} calls={callOptions} active={mentionIndex} onChoose={chooseMention} />}
+        <div className="composer-input">
+        <ComposerHighlight text={prompt} target={composer} />
         <textarea
           ref={composer}
           aria-label={t("Messaggio all’assistente")}
@@ -612,7 +636,7 @@ export default function AssistantPanel({
           aria-autocomplete="list"
           aria-controls={mention ? "source-mentions" : undefined}
           aria-activedescendant={
-            mentionOptions[mentionIndex]
+            mentionAt(mentionIndex)
               ? `source-option-${mentionIndex}`
               : undefined
           }
@@ -640,23 +664,19 @@ export default function AssistantPanel({
                 return;
               }
               if (
-                mentionOptions.length &&
+                mentionCount &&
                 !e.shiftKey &&
                 ["ArrowDown", "ArrowUp", "Enter", "Tab"].includes(e.key)
               ) {
                 e.preventDefault();
                 if (e.key === "Enter" || e.key === "Tab")
-                  chooseMention(
-                    mentionOptions[
-                      Math.min(mentionIndex, mentionOptions.length - 1)
-                    ],
-                  );
+                  chooseMention(mentionAt(Math.min(mentionIndex, mentionCount - 1))!);
                 else {
                   const index =
                     (mentionIndex +
                       (e.key === "ArrowDown" ? 1 : -1) +
-                      mentionOptions.length) %
-                    mentionOptions.length;
+                      mentionCount) %
+                    mentionCount;
                   setMentionIndex(index);
                   document
                     .getElementById(`source-option-${index}`)
@@ -664,6 +684,18 @@ export default function AssistantPanel({
                 }
                 return;
               }
+            }
+            // A mention behaves like a single token: Backspace right after it removes it whole.
+            const box = e.currentTarget;
+            const whole = e.key === "Backspace" && !e.nativeEvent.isComposing && box.selectionStart === box.selectionEnd
+              ? mentionBefore(prompt, box.selectionStart) : null;
+            if (whole) {
+              e.preventDefault();
+              const text = prompt.slice(0, whole.start) + prompt.slice(whole.end);
+              setPrompt(text);
+              draftByCall.current.set(detail.call.id, text);
+              requestAnimationFrame(() => composer.current?.setSelectionRange(whole.start, whole.start));
+              return;
             }
             if (
               e.key === "Enter" &&
@@ -675,6 +707,7 @@ export default function AssistantPanel({
             }
           }}
         />
+        </div>
         {provider === "ollama" && !ollamaServer && <OllamaContext key={detail.call.id} id={detail.call.id} settings={settings} detail={detail}
           liveSegments={status.live_segments} revision={sources.inventory} prompt={prompt} active={active} onSettings={onContextSettings} />}
         <div className="composer-toolbar">

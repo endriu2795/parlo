@@ -59,7 +59,7 @@ pub fn start(app: AppHandle, settings: &Settings, info: Capture, dir: PathBuf) -
             if let Some(error) = error { Err(error) } else { Ok((!text.is_empty()).then_some(text)) }
         }
     });
-    Ok(Recording { info, stop, start, handles: vec![handle], dir, video_input: None })
+    Ok(Recording { info, stop, start, handles: vec![handle], dir, video_input: None, microphone_route: Default::default() })
 }
 pub fn notify(heading: &str, title: &str) -> Result<(), String> {
     let heading = CString::new(heading).map_err(|e| e.to_string())?;

@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc, Arc,
+        mpsc, Arc, Mutex,
     },
     thread,
     time::Instant,
@@ -51,6 +51,8 @@ pub struct Recording {
     pub handles: Vec<thread::JoinHandle<Result<Option<String>, String>>>,
     pub dir: PathBuf,
     pub video_input: Option<Arc<std::sync::Mutex<std::process::ChildStdin>>>,
+    /// Microphone endpoint chosen during this recording; empty follows Windows.
+    pub microphone_route: Arc<Mutex<String>>,
 }
 #[derive(serde::Serialize)]
 pub struct AudioOutput { pub id: String, pub name: String }
@@ -59,6 +61,114 @@ pub fn outputs() -> Result<Vec<AudioOutput>, String> {
     { windows_capture::outputs().map_err(|e|e.to_string()) }
     #[cfg(not(windows))]
     { Ok(vec![]) }
+}
+pub fn inputs() -> Result<Vec<AudioOutput>, String> {
+    #[cfg(windows)]
+    { windows_capture::inputs().map_err(|e|e.to_string()) }
+    #[cfg(not(windows))]
+    { Ok(vec![]) }
+}
+
+/// Warn only for input that cannot be a working microphone: samples within
+/// one LSB of zero, or no stream at all. A real microphone always carries a
+/// noise floor, even in a quiet room, so ordinary silence never qualifies.
+const SILENT_PEAK: f32 = 2. / 32768.;
+const SILENT_WARN_MS: u64 = 10_000;
+const UNAVAILABLE_WARN_MS: u64 = 3_000;
+/// Some headsets gate their output to exact zero between words. A stream that
+/// recovers on its own after this long proves gating, not a dead input.
+const GATE_RECOVERY_MS: u64 = 2_000;
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub(crate) enum SignalState { #[default] Ok, Silent, Unavailable }
+impl SignalState {
+    pub(crate) fn name(self) -> &'static str {
+        match self { Self::Ok => "ok", Self::Silent => "silent", Self::Unavailable => "unavailable" }
+    }
+}
+#[derive(Default)]
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) struct SignalWatch {
+    zero_since: Option<u64>,
+    /// The whole zero period came from packets Windows marked silent (mute).
+    zero_flagged: bool,
+    gated: bool,
+    unavailable_since: Option<u64>,
+    state: SignalState,
+    episode_start: Option<u64>,
+    silent_ms: u64,
+    episodes: u64,
+    positions: Vec<u64>,
+}
+#[cfg_attr(not(windows), allow(dead_code))]
+impl SignalWatch {
+    /// A new native stream: device-specific history no longer applies.
+    pub(crate) fn opened(&mut self, now: u64) {
+        self.unavailable_since = None;
+        self.zero_since = Some(now);
+        self.zero_flagged = true;
+        self.gated = false;
+    }
+    pub(crate) fn lost(&mut self, now: u64) {
+        self.unavailable_since.get_or_insert(now);
+        self.zero_since = None;
+    }
+    pub(crate) fn observe(&mut self, peak: f32, windows_silent: bool, now: u64) {
+        if peak >= SILENT_PEAK && !windows_silent {
+            if let Some(since) = self.zero_since.take() {
+                if !self.zero_flagged && now.saturating_sub(since) >= GATE_RECOVERY_MS {
+                    self.gated = true;
+                }
+            }
+        } else if self.zero_since.is_none() {
+            self.zero_since = Some(now);
+            self.zero_flagged = windows_silent;
+        } else {
+            self.zero_flagged &= windows_silent;
+        }
+    }
+    fn current(&self, now: u64) -> SignalState {
+        if let Some(since) = self.unavailable_since {
+            return if now.saturating_sub(since) >= UNAVAILABLE_WARN_MS { SignalState::Unavailable } else { SignalState::Ok };
+        }
+        match self.zero_since {
+            Some(since) if (!self.gated || self.zero_flagged) && now.saturating_sub(since) >= SILENT_WARN_MS => SignalState::Silent,
+            _ => SignalState::Ok,
+        }
+    }
+    /// Returns the new state only when it changes.
+    pub(crate) fn poll(&mut self, now: u64) -> Option<SignalState> {
+        let next = self.current(now);
+        if next == self.state { return None; }
+        self.close_episode(now);
+        if next == SignalState::Silent {
+            let start = self.zero_since.unwrap_or(now);
+            self.episode_start = Some(start);
+            self.episodes += 1;
+            if self.positions.len() < 6 { self.positions.push(start); }
+        }
+        self.state = next;
+        Some(next)
+    }
+    pub(crate) fn state(&self) -> SignalState { self.state }
+    fn close_episode(&mut self, now: u64) {
+        if let Some(start) = self.episode_start.take() {
+            self.silent_ms += now.saturating_sub(start);
+        }
+    }
+    pub(crate) fn diagnostics(&self) -> serde_json::Value {
+        serde_json::json!({"silent_warnings": self.episodes, "silent_ms": self.silent_ms,
+            "silent_positions_ms": self.positions})
+    }
+    /// Unavailability is already reported by the routing history.
+    pub(crate) fn warning(&mut self, now: u64) -> Option<String> {
+        self.close_episode(now);
+        if self.episodes == 0 { return None; }
+        let positions = self.positions.iter()
+            .map(|ms| format!("{:02}:{:02}", ms / 60_000, ms / 1000 % 60))
+            .collect::<Vec<_>>().join(", ");
+        Some(format!("Microfono: nessun segnale per {} s complessivi, da {}{}. Controlla quei punti.",
+            self.silent_ms / 1000, positions, if self.episodes > self.positions.len() as u64 {" e altri punti"} else {""}))
+    }
 }
 impl Recording {
     pub fn finish(self) -> Result<(Capture, i64, PathBuf, Option<String>), String> {
@@ -109,6 +219,7 @@ pub fn start(
         let mut handles = Vec::new();
         let clock_origin = clock_hns()?;
         let (tx, rx) = mpsc::channel();
+        let microphone_route = Arc::new(Mutex::new(String::new()));
         for source in ["microphone", "system"] {
             if (source == "microphone" && !settings.microphone)
                 || (source == "system" && !settings.system_audio)
@@ -119,9 +230,13 @@ pub fn start(
             let app = app.clone();
             let stop = stop.clone();
             let file = dir.join(format!("{source}.wav"));
-            let output = settings.system_audio_output.clone();
+            let route = if source == "microphone" {
+                microphone_route.clone()
+            } else {
+                Arc::new(Mutex::new(settings.system_audio_output.clone()))
+            };
             handles.push(thread::spawn(move || {
-                let result = capture(&app, source, &file, stop.clone(), start, clock_origin, tx, &output);
+                let result = capture(&app, source, &file, stop.clone(), start, clock_origin, tx, route);
                 if let Err(ref e) = result {
                     stop.store(true, Ordering::SeqCst);
                     let _ = app.emit(
@@ -155,6 +270,7 @@ pub fn start(
             handles,
             dir,
             video_input: None,
+            microphone_route,
         })
     }
 }
@@ -186,9 +302,9 @@ fn capture(
     start: Instant,
     clock_origin: u64,
     ready: mpsc::Sender<Result<(), String>>,
-    output: &str,
+    route: Arc<Mutex<String>>,
 ) -> Result<Option<String>, String> {
-    windows_capture::capture(app, source, file, stop, start, clock_origin, ready, output)
+    windows_capture::capture(app, source, file, stop, start, clock_origin, ready, route)
 }
 #[derive(Default)]
 struct PacketTimeline {
@@ -671,6 +787,62 @@ mod meter_tests {
         drop(reader);
         writer.finalize().unwrap();
         std::fs::remove_file(file).unwrap();
+    }
+    #[test]
+    fn dead_microphone_warns_after_ten_seconds_and_clears_on_signal() {
+        let mut watch = SignalWatch::default();
+        watch.opened(0);
+        for ms in (0..9_900).step_by(10) { watch.observe(0., false, ms); }
+        assert_eq!(watch.poll(9_900), None);
+        assert_eq!(watch.poll(10_000), Some(SignalState::Silent));
+        assert_eq!(watch.poll(12_000), None);
+        watch.observe(0.01, false, 15_000);
+        assert_eq!(watch.poll(15_000), Some(SignalState::Ok));
+        assert!(watch.warning(20_000).unwrap().contains("15 s complessivi, da 00:00"));
+    }
+    #[test]
+    fn quiet_room_noise_floor_and_brief_zeros_never_warn() {
+        let mut watch = SignalWatch::default();
+        watch.opened(0);
+        for ms in (0..120_000).step_by(10) {
+            // About -80 dBFS: far below speech, still a live analog input.
+            watch.observe(if ms % 5_000 < 300 { 0. } else { 1e-4 }, false, ms);
+            assert_eq!(watch.poll(ms), None);
+        }
+        assert!(watch.warning(120_000).is_none());
+    }
+    #[test]
+    fn no_packets_and_missing_device_warn_but_quick_route_changes_do_not() {
+        let mut watch = SignalWatch::default();
+        watch.opened(0);
+        assert_eq!(watch.poll(10_000), Some(SignalState::Silent)); // stream delivers nothing
+        watch.lost(10_000);
+        assert_eq!(watch.poll(12_500), Some(SignalState::Ok));
+        watch.opened(12_500);
+        watch.observe(0.01, false, 12_600);
+        watch.lost(20_000);
+        assert_eq!(watch.poll(22_900), None);
+        assert_eq!(watch.poll(23_000), Some(SignalState::Unavailable));
+        watch.opened(24_000);
+        assert_eq!(watch.poll(24_000), Some(SignalState::Ok));
+        assert!(watch.warning(30_000).unwrap().contains("Microfono"));
+    }
+    #[test]
+    fn gated_headset_is_learned_but_windows_mute_still_warns() {
+        let mut watch = SignalWatch::default();
+        watch.opened(0);
+        watch.observe(0.01, false, 0);
+        watch.observe(0., false, 1_000);
+        watch.observe(0.01, false, 4_000); // exact zeros, then speech again
+        watch.observe(0., false, 5_000);
+        assert_eq!(watch.poll(60_000), None);
+        watch.observe(0., true, 61_000); // a muted endpoint is still reported
+        watch.observe(0.01, false, 62_000);
+        watch.observe(0., true, 63_000);
+        assert_eq!(watch.poll(73_000), Some(SignalState::Silent));
+        watch.opened(80_000); // a new device starts without learned gating
+        assert_eq!(watch.poll(80_000), Some(SignalState::Ok));
+        assert_eq!(watch.poll(90_000), Some(SignalState::Silent));
     }
     #[test]
     fn normal_voice_uses_the_db_scale_and_all_packets_are_averaged() {

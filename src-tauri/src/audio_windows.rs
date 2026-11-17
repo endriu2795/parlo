@@ -1,15 +1,15 @@
 //! WASAPI endpoint routing. A device change replaces the native stream, never
 //! the WAV writer or the call clock. COM callbacks only signal the owning thread.
-use super::{open_track, DeviceFrameClock, LevelMeter, PacketTimeline};
+use super::{open_track, DeviceFrameClock, LevelMeter, PacketTimeline, SignalState, SignalWatch};
 use std::{
     path::Path,
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc, Arc,
+        mpsc, Arc, Mutex,
     },
     time::{Duration, Instant},
 };
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use windows::{
     core::{Result as WinResult, PCWSTR, PWSTR},
     Win32::{
@@ -33,30 +33,34 @@ fn take_string(value: PWSTR) -> WinResult<String> {
     unsafe { CoTaskMemFree(Some(value.0.cast())); }
     Ok(result?)
 }
-pub(super) fn outputs() -> WinResult<Vec<super::AudioOutput>> {
+fn friendly_name(device: &IMMDevice) -> WinResult<String> {
+    let store = unsafe { device.OpenPropertyStore(STGM_READ) }?;
+    let mut value = unsafe { store.GetValue(&PKEY_Device_FriendlyName) }?;
+    let name = unsafe { PropVariantToStringAlloc(&value) }.and_then(take_string);
+    unsafe { PropVariantClear(&mut value) }?;
+    name
+}
+fn endpoints(direction: EDataFlow) -> WinResult<Vec<super::AudioOutput>> {
     unsafe { CoInitializeEx(None, COINIT_MULTITHREADED).ok() }?;
     let _com = Com;
     let enumerator: IMMDeviceEnumerator = unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) }?;
-    let devices = unsafe { enumerator.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE) }?;
+    let devices = unsafe { enumerator.EnumAudioEndpoints(direction, DEVICE_STATE_ACTIVE) }?;
     let mut result = Vec::new();
     for index in 0..unsafe { devices.GetCount() }? {
         let device = unsafe { devices.Item(index) }?;
         let id = take_string(unsafe { device.GetId() }?)?;
-        let name = (|| -> WinResult<String> {
-            let store = unsafe { device.OpenPropertyStore(STGM_READ) }?;
-            let mut value = unsafe { store.GetValue(&PKEY_Device_FriendlyName) }?;
-            let name = unsafe { PropVariantToStringAlloc(&value) }.and_then(take_string);
-            unsafe { PropVariantClear(&mut value) }?;
-            name
-        })().unwrap_or_else(|_| id.clone());
+        let name = friendly_name(&device).unwrap_or_else(|_| id.clone());
         result.push(super::AudioOutput { id, name });
     }
     result.sort_by_key(|device| device.name.to_lowercase());
     Ok(result)
 }
+pub(super) fn outputs() -> WinResult<Vec<super::AudioOutput>> { endpoints(eRender) }
+pub(super) fn inputs() -> WinResult<Vec<super::AudioOutput>> { endpoints(eCapture) }
+/// Empty follows the Windows default; any other value is a fixed endpoint id.
 fn output_role(direction: EDataFlow, output: &str) -> Option<ERole> {
-    if direction != eRender || output.is_empty() { Some(eConsole) }
-    else if output == "@communications" { Some(eCommunications) }
+    if output.is_empty() { Some(eConsole) }
+    else if output == "@communications" { Some(if direction == eRender { eCommunications } else { eConsole }) }
     else { None }
 }
 struct Event(HANDLE);
@@ -163,6 +167,7 @@ impl Drop for EndpointWatch {
 
 struct Stream {
     id: String,
+    name: String,
     client: IAudioClient,
     reader: IAudioCaptureClient,
     event: Event,
@@ -176,6 +181,7 @@ struct Packet {
 }
 impl Stream {
     fn open(id: String, device: &IMMDevice, loopback: bool) -> WinResult<Self> {
+        let name = friendly_name(device).unwrap_or_default();
         let client: IAudioClient = unsafe { device.Activate(CLSCTX_ALL, None) }?;
         let native_format = unsafe { client.GetMixFormat() }?;
         let native_rate = unsafe { (*native_format).nSamplesPerSec };
@@ -204,6 +210,7 @@ impl Stream {
         unsafe { client.Start() }?;
         Ok(Self {
             id,
+            name,
             client,
             reader,
             event,
@@ -309,6 +316,27 @@ impl ReconnectHistory {
     }
 }
 
+/// One desktop notification per episode, so the warning is seen even while the
+/// recorder is docked or hidden. Runs off the capture thread: toasts use COM.
+fn notify_signal(app: &AppHandle, file: &Path, state: SignalState, device: &str) {
+    use crate::locale::tr;
+    let device = if device.is_empty() { tr("il microfono", "the microphone") } else { device };
+    let (heading, message) = if state == SignalState::Silent {
+        (tr("Nessun segnale dal microfono", "No microphone signal"),
+            tr("Nessun segnale da {}. Se stai parlando, controlla le cuffie o cambia microfono in PARLO.",
+                "No signal from {}. If you are speaking, check your headset or switch microphone in PARLO.").replace("{}", device))
+    } else {
+        (tr("Microfono non disponibile", "Microphone unavailable"),
+            tr("{} non risponde. Ricollega le cuffie o scegli un altro microfono in PARLO.",
+                "{} is not responding. Reconnect your headset or choose another microphone in PARLO.").replace("{}", device))
+    };
+    let (app, call_id) = (app.clone(), file.parent().and_then(Path::file_name).map(|n| n.to_string_lossy().into_owned()).unwrap_or_default());
+    std::thread::spawn(move || {
+        let data_dir = app.state::<crate::Shared>().data_dir.clone();
+        crate::notifications::recording_issue(&app, &data_dir, &call_id, heading, &message);
+    });
+}
+
 pub(super) fn capture(
     app: &AppHandle,
     source: &str,
@@ -317,8 +345,10 @@ pub(super) fn capture(
     start: Instant,
     clock_origin: u64,
     ready: mpsc::Sender<Result<(), String>>,
-    output: &str,
+    route: Arc<Mutex<String>>,
 ) -> Result<Option<String>, String> {
+    let output = route.lock().map(|value| value.clone()).unwrap_or_default();
+    let output = output.as_str();
     if let Err(error) = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED).ok() } {
         let message = error.to_string();
         let _ = ready.send(Err(message.clone()));
@@ -353,7 +383,7 @@ pub(super) fn capture(
         let stream = Stream::open(id, &device, source == "system").map_err(|e| e.to_string())?;
         Ok((watch, writer, stream))
     })();
-    let (watch, mut writer, stream) = match initialized {
+    let (mut watch, mut writer, stream) = match initialized {
         Ok(value) => {
             let _ = ready.send(Ok(()));
             value
@@ -370,6 +400,11 @@ pub(super) fn capture(
         (Instant::now(), Instant::now(), Instant::now());
     let mut meter = LevelMeter::default();
     let frame_now = || (start.elapsed().as_secs_f64() * 16000.) as u64;
+    let ms_now = || start.elapsed().as_millis() as u64;
+    let microphone = source == "microphone";
+    let mut signal = SignalWatch::default();
+    signal.opened(ms_now());
+    let mut device_name = stream.as_ref().map(|current| current.name.clone()).unwrap_or_default();
     while !stop.load(Ordering::SeqCst) {
         if let Some(current) = &mut stream {
             unsafe {
@@ -380,6 +415,12 @@ pub(super) fn capture(
         }
         if stop.load(Ordering::SeqCst) {
             break;
+        }
+        if let Ok(wanted) = route.lock() {
+            if *wanted != watch.output {
+                watch.output = wanted.clone();
+                watch.changed.store(true, Ordering::SeqCst);
+            }
         }
         let mut lost = false;
         if let Some(current) = &mut stream {
@@ -419,6 +460,9 @@ pub(super) fn capture(
                 for _ in 0..plan.padding {
                     writer.write_sample(0i16).map_err(|e| e.to_string())?;
                 }
+                let peak = packet.samples.iter()
+                    .fold(0f32, |peak, sample| if sample.is_finite() { peak.max(sample.abs()) } else { peak });
+                signal.observe(peak, packet.flags & AUDCLNT_BUFFERFLAGS_SILENT.0 as u32 != 0, ms_now());
                 for sample in &packet.samples[plan.skip..] {
                     let value = if sample.is_finite() {
                         sample.clamp(-1., 1.)
@@ -434,6 +478,7 @@ pub(super) fn capture(
         }
         if lost {
             reconnect.begin(frame_now());
+            signal.lost(ms_now());
             drop(stream.take());
             meter = LevelMeter::default();
             watch.changed.store(true, Ordering::SeqCst);
@@ -446,17 +491,23 @@ pub(super) fn capture(
             match watch.endpoint(direction) {
                 Ok((id, device)) if stream.as_ref().is_none_or(|current| current.id != id) => {
                     reconnect.begin(frame_now());
+                    signal.lost(ms_now());
                     // Release only this endpoint; the other source runs independently.
                     drop(stream.take());
                     meter = LevelMeter::default();
                     if let Ok(next) = Stream::open(id, &device, source == "system") {
                         timeline.begin_stream();
                         reconnect.end(frame_now());
+                        signal.opened(ms_now());
+                        device_name = next.name.clone();
                         stream = Some(next);
+                    } else if let Ok(name) = friendly_name(&device) {
+                        device_name = name;
                     }
                 }
                 Err(_) => {
                     reconnect.begin(frame_now());
+                    signal.lost(ms_now());
                     drop(stream.take());
                     meter = LevelMeter::default();
                 }
@@ -478,6 +529,14 @@ pub(super) fn capture(
                 "audio-route",
                 serde_json::json!({"source":source,"reconnecting":stream.is_none()}),
             );
+            if microphone {
+                if let Some(state) = signal.poll(ms_now()) {
+                    if state != SignalState::Ok { notify_signal(app, file, state, &device_name); }
+                }
+                let _ = app.emit("microphone-health", serde_json::json!({
+                    "state": signal.state().name(), "device": device_name, "selected": watch.output,
+                }));
+            }
             last_meter = Instant::now();
         }
     }
@@ -495,6 +554,7 @@ pub(super) fn capture(
     // Diagnostics contain counters/times only, never audio or transcript text.
     let still_missing = reconnect.since.is_some();
     let routing_warning = reconnect.warning(source, final_frames);
+    let signal_warning = if microphone { signal.warning(ms_now()) } else { None };
     let diagnostics = serde_json::json!({
         "version": 1, "source": source, "duration_ms": final_frames / 16,
         "written_frames": timeline.written, "sample_rate": 16000,
@@ -502,6 +562,7 @@ pub(super) fn capture(
         "packets": timeline.diagnostics(),
         "routing": {"reconnections": reconnect.count, "unavailable_ms": reconnect.frames as f64 / 16.,
             "longest_unavailable_ms": reconnect.longest as f64 / 16., "missing_at_stop": still_missing},
+        "signal": if microphone { signal.diagnostics() } else { serde_json::Value::Null },
     });
     if let Err(error) = std::fs::write(file.with_extension("diagnostics.json"), diagnostics.to_string()) {
         eprintln!("Diagnostica cattura non salvata ({source}): {error}");
@@ -509,6 +570,7 @@ pub(super) fn capture(
     let warnings = [
         timeline.warning(source),
         routing_warning,
+        signal_warning,
     ]
     .into_iter()
     .flatten()
@@ -565,7 +627,9 @@ mod tests {
         assert_eq!(output_role(eRender, ""), Some(eConsole));
         assert_eq!(output_role(eRender, "@communications"), Some(eCommunications));
         assert_eq!(output_role(eRender, "synthetic-endpoint"), None);
-        assert_eq!(output_role(eCapture, "synthetic-endpoint"), Some(eConsole));
+        // A microphone chosen during recording stays fixed; empty follows Windows.
+        assert_eq!(output_role(eCapture, ""), Some(eConsole));
+        assert_eq!(output_role(eCapture, "synthetic-endpoint"), None);
         assert_eq!(output_role(eCapture, "@communications"), Some(eConsole));
     }
     use super::*;

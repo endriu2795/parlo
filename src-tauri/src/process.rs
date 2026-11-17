@@ -372,6 +372,7 @@ pub fn transcribe(
 }
 fn compose_chat_context(state: &AppState, settings: &Settings, detail: &Detail, prompt: &str, documents: &str, create_output: bool) -> Result<(String,String)> {
     let mut context = crate::sources::context(state, detail)?;
+    context.push_str(&crate::sources::cited_calls(state, detail, prompt)?);
     context.push_str(documents);
     let voice_context = crate::tts::context(settings);
     if detail.segments.is_empty() {

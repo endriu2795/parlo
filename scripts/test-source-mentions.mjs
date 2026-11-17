@@ -13,7 +13,7 @@ const compiled = ts.transpileModule(source, {
     module: ts.ModuleKind.ESNext,
   },
 }).outputText;
-const { mentionQuery, matchingSources, insertMention, splitSourceMentions } = await import(
+const { mentionQuery, matchingSources, insertMention, splitSourceMentions, callMention, mentionBefore } = await import(
   `data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`
 );
 const file = (name, scope = "chat", enabled = true, available = true) => ({
@@ -77,4 +77,25 @@ test("missing or ambiguous mentions never guess a file path", () => {
   for (const inventory of [[], [{ ...source, available: false }], [{ ...source, path: null }], [source, { ...source, id: "two", path: "C:/altro/Stile.pptx" }]]) {
     assert.deepEqual(splitSourceMentions(text, inventory), [{ text }]);
   }
+});
+
+test("archive calls get a stable label and render as call mentions", () => {
+  const created = "2026-11-12T10:30:00+00:00";
+  const date = new Date(created);
+  const day = `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
+  const label = callMention({ title: "  Cliente «Rossi»\n kickoff ", created_at: created });
+  assert.equal(label, `@«Cliente Rossi kickoff · ${day}»`);
+  assert.equal(callMention({ title: "«»", created_at: "non è una data" }), "@«Call»");
+  const text = `Confronta ${label} con questa`;
+  const parts = splitSourceMentions(text, []);
+  assert.deepEqual(parts.map(part => Boolean(part.call)), [false, true, false]);
+  assert.equal(parts.map(part => part.text).join(""), text);
+});
+
+test("Backspace right after a mention removes it whole, not after a space", () => {
+  const text = "Usa @«Kickoff · 12/11/2026» ora";
+  const end = "Usa @«Kickoff · 12/11/2026»".length;
+  assert.deepEqual(mentionBefore(text, end), { start: 4, end });
+  assert.equal(mentionBefore(text, end + 1), null);
+  assert.equal(mentionBefore("nessuna menzione", 8), null);
 });

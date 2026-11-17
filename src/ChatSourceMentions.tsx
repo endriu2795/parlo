@@ -26,5 +26,7 @@ function SourceLink({ callId, source, text }: { callId: string; source: ChatSour
 export default function SourceMentions({ text, callId, sources }: { text: string; callId: string; sources: ChatSource[] }) {
   return <>{splitSourceMentions(text, sources).map((part, index) => part.source
     ? <SourceLink key={`${callId}:${part.source.id}:${index}`} callId={callId} source={part.source} text={part.text}/>
-    : <Fragment key={index}>{part.text}</Fragment>)}</>;
+    : part.call
+      ? <span key={index} className="chat-call-mention" title={t("Call dell’archivio citata")}>{part.text}</span>
+      : <Fragment key={index}>{part.text}</Fragment>)}</>;
 }

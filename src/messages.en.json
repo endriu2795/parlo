@@ -952,5 +952,19 @@
   "Configurare un server Ollama": "Configure an Ollama server",
   "Usa il nome esatto del modello disponibile sul server.": "Use the exact name of a model available on the server.",
   "Usa il nome di una voce supportata dal modello sul server.": "Use the name of a voice supported by the model on the server.",
-  "Il test invia una breve richiesta al server usando la chiave salvata. Verifica la risposta del servizio.": "The test sends a short request to the server using the saved key and checks the response."
+  "Il test invia una breve richiesta al server usando la chiave salvata. Verifica la risposta del servizio.": "The test sends a short request to the server using the saved key and checks the response.",
+  "Microfono in uso": "Microphone in use",
+  "Predefinito · {0}": "Default · {0}",
+  "Predefinito di Windows": "Windows default",
+  "Microfono selezionato": "Selected microphone",
+  "microfono": "microphone",
+  "Nessun segnale da {0}. Se stai parlando, controlla le cuffie o cambia microfono.": "No signal from {0}. If you are speaking, check your headset or switch microphone.",
+  "{0} non risponde. Ricollega le cuffie o scegli un altro microfono.": "{0} is not responding. Reconnect your headset or choose another microphone.",
+  "Ignora": "Dismiss",
+  "Problema al microfono: mostra controlli": "Microphone problem: show controls",
+  "Nessun segnale dal microfono": "No microphone signal",
+  "Mic muto": "Mic silent",
+  "Mic non disponibile": "Mic unavailable",
+  "Altre call dell’archivio": "Other calls in the archive",
+  "Call dell’archivio citata": "Archive call mentioned"
 }

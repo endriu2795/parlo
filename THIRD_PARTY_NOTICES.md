@@ -1,130 +1,130 @@
-# Licenze e componenti di terze parti
+# Third-party licenses and components
 
-Il codice originale di PARLO usa **GPL-3.0-only**;
-il testo integrale è in [LICENSE](LICENSE). Questa scelta non modifica le
-licenze dei componenti esterni, dei modelli scaricabili o dei servizi collegati.
-Copyright e attribuzioni originali devono essere conservati.
+PARLO's original code is licensed under **GPL-3.0-only**; the full text is in
+[LICENSE](LICENSE). This choice does not change the licenses of external
+components, downloadable models, or connected services. Original copyright
+notices and attributions must be preserved.
 
-- **Inter** e **Bricolage Grotesque** usano la SIL Open Font License 1.1.
-  [Licenza Inter](public/fonts/LICENSE-inter.txt) e
-  [licenza Bricolage Grotesque](public/fonts/LICENSE-bricolage.txt).
+- **Inter** and **Bricolage Grotesque** use the SIL Open Font License 1.1.
+  [Inter license](public/fonts/LICENSE-inter.txt) and
+  [Bricolage Grotesque license](public/fonts/LICENSE-bricolage.txt).
 
-## Voce locale
+## Local speech
 
-- **Piper (`piper-tts` 1.8.0)**: GPL-3.0-or-later, progetto
+- **Piper (`piper-tts` 1.8.0)**: GPL-3.0-or-later, project
   [OHF-Voice/piper1-gpl](https://github.com/OHF-Voice/piper1-gpl).
-  Il testo GPLv3 è anche in [LICENSE](LICENSE). Piper include eSpeak NG.
-  Le voci Serena sono scaricate separatamente e dichiarate CC-BY-4.0:
-  autori, model card e revisione in [PIPER-LICENSES.md](engine/PIPER-LICENSES.md).
+  The GPLv3 text is also in [LICENSE](LICENSE). Piper includes eSpeak NG.
+  The Serena voices are downloaded separately and declared CC-BY-4.0:
+  authors, model cards, and revision are in [PIPER-LICENSES.md](engine/PIPER-LICENSES.md).
 - **Kokoro ONNX 0.6.1**: MIT, copyright 2025 github.com/thewh1teagle;
-  [testo della licenza](licenses/kokoro-onnx.txt) e
-  [sorgenti](https://github.com/thewh1teagle/kokoro-onnx).
-  La sua licenza non copre automaticamente i modelli o le dipendenze.
-- **Phonemizer 3.4.0**, usato da Kokoro: GPL-3.0-or-later,
-  copyright degli autori del progetto, fra cui Mathieu Bernard e Hadrien Titeux.
-  [Sorgenti e copyright](https://github.com/bootphon/phonemizer),
-  [testo GPLv3](LICENSE).
-- **eSpeak NG**, incluso attraverso Piper e `espeakng-loader`:
-  [licenza GPLv3 e sorgenti](https://github.com/espeak-ng/espeak-ng).
-  Il wrapper `espeakng-loader` 0.2.4 ha licenza MIT:
-  [testo](licenses/espeakng-loader.txt),
-  [sorgenti](https://github.com/thewh1teagle/espeakng-loader).
-  La licenza del wrapper non sostituisce quella della libreria inclusa.
-- **Qwen3-TTS**: ambiente opzionale scaricato separatamente. Codice, modello
-  Apache-2.0 e revisione sono descritti in [QWEN-LICENSES.md](engine/QWEN-LICENSES.md);
-  [testo Apache-2.0](engine/QWEN-MODEL-LICENSE.txt).
+  [license text](licenses/kokoro-onnx.txt) and
+  [sources](https://github.com/thewh1teagle/kokoro-onnx).
+  Its license does not automatically cover the models or dependencies.
+- **Phonemizer 3.4.0**, used by Kokoro: GPL-3.0-or-later, copyright of the
+  project authors, including Mathieu Bernard and Hadrien Titeux.
+  [Sources and copyright](https://github.com/bootphon/phonemizer),
+  [GPLv3 text](LICENSE).
+- **eSpeak NG**, included through Piper and `espeakng-loader`:
+  [GPLv3 license and sources](https://github.com/espeak-ng/espeak-ng).
+  The `espeakng-loader` 0.2.4 wrapper is MIT-licensed:
+  [text](licenses/espeakng-loader.txt),
+  [sources](https://github.com/thewh1teagle/espeakng-loader).
+  The wrapper's license does not replace that of the bundled library.
+- **Qwen3-TTS**: optional environment, downloaded separately. Code, Apache-2.0
+  model, and revision are described in [QWEN-LICENSES.md](engine/QWEN-LICENSES.md);
+  [Apache-2.0 text](engine/QWEN-MODEL-LICENSE.txt).
 
-I metadati delle versioni Python di Piper, Phonemizer, Kokoro, espeakng-loader
-e imageio-ffmpeg, con gli indirizzi e gli hash dei sorgenti pubblicati da PyPI,
-sono raccolti in [licenses/python-sources.json](licenses/python-sources.json).
-Per espeakng-loader 0.2.4 PyPI non pubblica un archivio sorgente: il collegamento
-fra wheel, sorgenti del wrapper ed eSpeak incorporato va completato prima
-della distribuzione binaria. Non sono stati scaricati modelli o dati degli utenti.
+Version metadata for the Python packages Piper, Phonemizer, Kokoro,
+espeakng-loader, and imageio-ffmpeg, with the source URLs and hashes published
+on PyPI, is collected in [licenses/python-sources.json](licenses/python-sources.json).
+PyPI does not publish a source archive for espeakng-loader 0.2.4: the link
+between the wheel, the wrapper sources, and the embedded eSpeak must be
+completed before binary distribution. No models or user data were downloaded.
 
-## Trascrizione, documenti e media
+## Transcription, documents, and media
 
 - **whisper.cpp 1.8.3**: MIT, copyright 2023-2024 The ggml authors;
-  [licenza](licenses/whisper-cpp.txt),
-  [sorgenti della versione usata](https://github.com/ggml-org/whisper.cpp/tree/v1.8.3).
-  Gli script nativi conservano anche `LICENSE-whisper.txt` nel runtime.
+  [license](licenses/whisper-cpp.txt),
+  [sources of the version used](https://github.com/ggml-org/whisper.cpp/tree/v1.8.3).
+  The native scripts also keep `LICENSE-whisper.txt` in the runtime.
 - **faster-whisper 1.2.1**: MIT, copyright 2023 SYSTRAN;
-  [licenza](licenses/faster-whisper.txt),
-  [sorgenti](https://github.com/SYSTRAN/faster-whisper/tree/v1.2.1).
-- **PyAV 16.0.1 (Windows) / 15.1.0 (Mac)**: BSD-3-Clause, copyright
-  degli autori originali; [licenza](licenses/pyav.txt),
-  [sorgenti](https://github.com/PyAV-Org/PyAV).
-  Le librerie FFmpeg contenute nei wheel mantengono le proprie condizioni.
-- **FFmpeg**, distribuito attraverso `imageio-ffmpeg` e le librerie di PyAV:
-  LGPL o GPL a seconda della configurazione effettiva dei binari.
-  [Condizioni ufficiali](https://ffmpeg.org/legal.html).
-  Il wrapper `imageio-ffmpeg` 0.6.0 è BSD-2-Clause:
-  [licenza](licenses/imageio-ffmpeg.txt),
-  [sorgenti](https://github.com/imageio/imageio-ffmpeg).
-  La licenza del wrapper non basta per descrivere il binario FFmpeg.
-- **CPython**, versione e distribuzione fissate in
+  [license](licenses/faster-whisper.txt),
+  [sources](https://github.com/SYSTRAN/faster-whisper/tree/v1.2.1).
+- **PyAV 16.0.1 (Windows) / 15.1.0 (Mac)**: BSD-3-Clause, copyright of the
+  original authors; [license](licenses/pyav.txt),
+  [sources](https://github.com/PyAV-Org/PyAV).
+  The FFmpeg libraries contained in the wheels keep their own terms.
+- **FFmpeg**, distributed through `imageio-ffmpeg` and the PyAV libraries:
+  LGPL or GPL depending on the actual configuration of the binaries.
+  [Official terms](https://ffmpeg.org/legal.html).
+  The `imageio-ffmpeg` 0.6.0 wrapper is BSD-2-Clause:
+  [license](licenses/imageio-ffmpeg.txt),
+  [sources](https://github.com/imageio/imageio-ffmpeg).
+  The wrapper's license is not sufficient to describe the FFmpeg binary.
+- **CPython**, with version and distribution pinned in
   [python-runtime.json](engine/python-runtime.json):
-  [licenza Python](https://docs.python.org/3/license.html),
-  [distribuzione python-build-standalone](https://github.com/astral-sh/python-build-standalone).
-  Conservare anche le licenze delle librerie native del runtime.
+  [Python license](https://docs.python.org/3/license.html),
+  [python-build-standalone distribution](https://github.com/astral-sh/python-build-standalone).
+  The licenses of the runtime's native libraries must also be preserved.
 
-L'elenco dei pacchetti Python e delle versioni è nei lockfile
-[trascrizione](engine/requirements-lock.txt) e
-[documenti/media](engine/documents-requirements-lock.txt).
-Il runtime documenti/media include Pillow 11.3.0 con la correzione per
+The list of Python packages and versions is in the lockfiles for
+[transcription](engine/requirements-lock.txt) and
+[documents/media](engine/documents-requirements-lock.txt).
+The documents/media runtime includes Pillow 11.3.0 with the fix for
 [CVE-2026-112399](https://github.com/python-pillow/Pillow/security/advisories/GHSA-5xm2-6676-qcp9),
-applicata durante la [preparazione del runtime](scripts/prepare-runtime.py).
-L'ambiente opzionale Qwen usa [qwen-tts-requirements.txt](engine/qwen-tts-requirements.txt).
-I pacchetti conservano i propri file di licenza e metadati `dist-info`;
-non rimuoverli quando si prepara un runtime.
+applied during [runtime preparation](scripts/prepare-runtime.py).
+The optional Qwen environment uses [qwen-tts-requirements.txt](engine/qwen-tts-requirements.txt).
+Packages keep their own license files and `dist-info` metadata; do not remove
+them when preparing a runtime.
 
-## Interfaccia e backend
+## Interface and backend
 
-Le dipendenze e versioni complete, incluse quelle transitive, sono fissate in
-[package-lock.json](package-lock.json) e [Cargo.lock](src-tauri/Cargo.lock).
-Fra i componenti principali:
+The complete dependencies and versions, including transitive ones, are pinned
+in [package-lock.json](package-lock.json) and [Cargo.lock](src-tauri/Cargo.lock).
+Main components include:
 
-- React/React DOM, react-markdown e remark-gfm: MIT.
-- Lucide: ISC, con eventuali attribuzioni delle icone derivate.
-- Tauri e i plugin: MIT oppure Apache-2.0 secondo i rispettivi pacchetti.
-- SQLite: pubblico dominio; il binding Rust e le altre crate mantengono
-  le proprie licenze.
+- React/React DOM, react-markdown, and remark-gfm: MIT.
+- Lucide: ISC, with any attributions for derived icons.
+- Tauri and its plugins: MIT or Apache-2.0, depending on the package.
+- SQLite: public domain; the Rust binding and other crates keep their own
+  licenses.
 
-Questo documento è un indice dei componenti principali, non l'inventario
-completo delle licenze di tutti i binari. Per una distribuzione vanno raccolti
-anche i testi e gli eventuali NOTICE delle dipendenze transitive effettivamente
-incluse; un lockfile da solo non li sostituisce.
+This document is an index of the main components, not a complete inventory of
+the licenses of every binary. A distribution must also collect the license
+texts and any NOTICE files of the transitive dependencies actually included;
+a lockfile alone does not replace them.
 
-## Programmi e servizi esterni
+## External programs and services
 
-Claude Code resta proprietario e soggetto alle
-[condizioni Anthropic](https://code.claude.com/docs/en/legal-and-compliance).
-Il progetto usa la CLI ufficiale, installata separatamente o scaricata dal suo
-distributore; non la rilicenzia sotto GPL. Anche Ollama la usa per gli strumenti.
-Il pacchetto npm Agent SDK è una dipendenza di sviluppo con condizioni proprie.
+Claude Code remains proprietary and subject to
+[Anthropic's terms](https://code.claude.com/docs/en/legal-and-compliance).
+The project uses the official CLI, installed separately or downloaded from its
+distributor; it does not relicense it under the GPL. Ollama also uses it for
+tools. The Agent SDK npm package is a development dependency with its own terms.
 
-Codex, Ollama e i rispettivi modelli mantengono le proprie licenze. Le revisioni
-dei runtime preparati dall'app sono nei manifest `engine/*-runtime.json`.
-Groq, Edge ed ElevenLabs sono servizi esterni: l'accesso segue le condizioni
-e gli eventuali costi dell'account dell'utente.
+Codex, Ollama, and their models keep their own licenses. The revisions of the
+runtimes prepared by the app are in the `engine/*-runtime.json` manifests.
+Groq, Edge, and ElevenLabs are external services: access follows the terms and
+any costs of the user's account.
 
-## Quando si distribuisce un installer
+## When distributing an installer
 
-La scelta del repository pubblico e del canale aggiornamenti è separata da
-questo documento. Prima di distribuire un nuovo pacchetto:
+The choice of public repository and update channel is separate from this
+document. Before distributing a new package:
 
-1. Accompagnarlo con `LICENSE`, questo indice e i testi di licenza/NOTICE
-   delle dipendenze incluse.
-2. Rendere accessibili accanto al download i sorgenti esatti del codice GPL
-   distribuito, le eventuali modifiche e gli script necessari a ricompilarlo.
-   Un link generico al ramo principale di un progetto non identifica quei sorgenti.
-3. Associare i componenti nativi incorporati alla loro versione e configurazione:
-   in particolare eSpeak NG, FFmpeg, runtime Python e relative librerie.
-   I sorgenti Python in `licenses/python-sources.json` non sostituiscono quelli
-   delle librerie native già compilate nei wheel.
-4. Conservare licenze e attribuzioni dei modelli effettivamente distribuiti;
-   i modelli scaricati a parte mantengono le proprie condizioni.
+1. Ship it with `LICENSE`, this index, and the license/NOTICE texts of the
+   included dependencies.
+2. Make the exact sources of the distributed GPL code, any modifications, and
+   the scripts needed to rebuild it available next to the download.
+   A generic link to a project's main branch does not identify those sources.
+3. Tie each embedded native component to its version and configuration:
+   in particular eSpeak NG, FFmpeg, the Python runtime, and its libraries.
+   The Python sources in `licenses/python-sources.json` do not replace those
+   of the native libraries already compiled into the wheels.
+4. Preserve the licenses and attributions of the models actually distributed;
+   models downloaded separately keep their own terms.
 
-Questa preparazione riguarda chi distribuisce i pacchetti. Chi usa l'app
-non deve registrarsi per leggere le licenze o compiere altre operazioni.
-La raccolta definitiva per gli installer è da completare nella fase di release;
-non sono stati verificati o generati pacchetti binari con questa modifica.
+These steps concern whoever distributes the packages. Users of the app do not
+need to register to read the licenses or perform any other operation.
+The final collection for the installers is to be completed during the release
+phase; no binary packages were verified or generated with this change.

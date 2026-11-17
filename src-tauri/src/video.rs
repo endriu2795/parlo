@@ -44,7 +44,7 @@ pub fn select(app: &tauri::AppHandle, state: &Shared, settings: &Settings) -> Re
     window.emit("video-selection-reset", ()).map_err(|e| e.to_string())?;
     window.show().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())?;
-    warm_up(state.clone(), settings.clone());
+    warm_up(app, state, settings);
     Ok(())
 }
 fn place(app: &tauri::AppHandle, region: &Region) -> Result<()> {
@@ -67,8 +67,7 @@ pub fn video_cancel_selection(app: tauri::AppHandle) -> Result<()> {
     hide_selection(&app)
 }
 pub fn hide_selection(app: &tauri::AppHandle) -> Result<()> {
-    let pending = WARMUP.guard().take();
-    drop(pending);
+    cancel_warmup();
     HINT_GENERATION.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     if let Some(window) = app.get_webview_window("video-area") {
         window.hide().map_err(|e|e.to_string())?;
@@ -175,35 +174,45 @@ fn runtime_key(settings: &Settings, state: &AppState) -> RuntimeKey {
     (state.data_dir.clone(), settings.python_bin.clone(), settings.stt_provider.clone())
 }
 struct WarmWorker {
-    key: RuntimeKey,
     child: Arc<EngineChild>,
     input: std::process::ChildStdin,
     output: std::process::ChildStdout,
     errors: std::process::ChildStderr,
 }
 impl WarmWorker {
-    fn spawn(settings: &Settings, state: &AppState) -> Result<Self> {
+    fn spawn(app: &tauri::AppHandle, settings: &Settings, state: &AppState) -> Result<Self> {
+        let mut settings = settings.clone();
+        if settings.remote_stt() {
+            settings.python_bin = crate::provision::media_python(app)?.to_string_lossy().into_owned();
+        }
         // Import libraries only. The worker receives no region or recording
         // directory until the user explicitly confirms the selection.
-        let mut child = engine_command(settings, state)?.arg("--warmup")
+        let mut child = engine_command(&settings, state)?.arg("--warmup")
             .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped())
             .spawn().map_err(|e| e.to_string())?;
         let input = child.stdin.take().ok_or("Controllo video non disponibile")?;
         let output = child.stdout.take().ok_or("Stato video non disponibile")?;
         let errors = child.stderr.take().ok_or("Diagnostica video non disponibile")?;
-        Ok(Self { key: runtime_key(settings, state), child: Arc::new(EngineChild::new(child)?), input, output, errors })
+        Ok(Self { child: Arc::new(EngineChild::new(child)?), input, output, errors })
     }
 }
 struct Warmup {
+    key: RuntimeKey,
     result: std::sync::mpsc::Receiver<Result<WarmWorker>>,
     cancelled: Arc<std::sync::atomic::AtomicBool>,
 }
 impl Warmup {
     fn take(self, key: &RuntimeKey) -> Result<Option<WarmWorker>> {
+        if &self.key != key {
+            return Ok(None);
+        }
         match self.result.recv_timeout(Duration::from_secs(15)) {
-            Ok(Ok(worker)) if &worker.key == key => Ok(Some(worker)),
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Err("Preparazione video troppo lenta. Riprova l’avvio.".into()),
-            _ => Ok(None),
+            Ok(Ok(worker)) => Ok(Some(worker)),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => Err(crate::locale::tr(
+                "Le librerie video non sono pronte entro 15 secondi. Attendi un momento e riprova.",
+                "The video libraries were not ready within 15 seconds. Wait a moment and try again.",
+            ).into()),
+            Ok(Err(_)) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => Ok(None),
         }
     }
 }
@@ -214,25 +223,32 @@ impl Drop for Warmup {
         // terminates its whole job; a later send after cancellation does too.
     }
 }
-fn warm_up(state: Shared, mut settings: Settings) {
+pub fn cancel_warmup() {
+    let pending = WARMUP.guard().take();
+    drop(pending);
+}
+
+pub fn warm_up(app: &tauri::AppHandle, state: &Shared, settings: &Settings) {
+    if !cfg!(windows) || !settings.keep_video {
+        return;
+    }
+    let key = runtime_key(settings, state);
+    let mut pending = WARMUP.guard();
+    if pending.as_ref().is_some_and(|worker| worker.key == key) {
+        return;
+    }
     let (sender, result) = std::sync::mpsc::channel();
     let cancelled = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let previous = WARMUP.guard().replace(Warmup { result, cancelled: cancelled.clone() });
+    let previous = pending.replace(Warmup { key, result, cancelled: cancelled.clone() });
+    drop(pending);
     drop(previous);
+    let app = app.clone();
+    let state = state.clone();
+    let settings = settings.clone();
     thread::spawn(move || {
-        let worker = (|| {
-            if cancelled.load(std::sync::atomic::Ordering::SeqCst) { return Err("Preparazione video annullata".into()); }
-            if settings.remote_stt() {
-                // Do not install a runtime speculatively or compete with the
-                // actual start operation for its provisioning lock.
-                let python = crate::python_runtime::prepared_installed(&crate::model::engine_dir())
-                    .ok_or("Il motore video verrà preparato all’avvio")?;
-                settings.python_bin = python.to_string_lossy().into_owned();
-            }
-            if cancelled.load(std::sync::atomic::Ordering::SeqCst) { return Err("Preparazione video annullata".into()); }
-            WarmWorker::spawn(&settings, &state)
-        })();
-        let _ = sender.send(worker);
+        if !cancelled.load(std::sync::atomic::Ordering::SeqCst) {
+            let _ = sender.send(WarmWorker::spawn(&app, &settings, &state));
+        }
     });
 }
 pub struct Prepared { child: Arc<EngineChild>, input: std::process::ChildStdin, error: PathBuf }
@@ -251,7 +267,7 @@ fn error(path: &Path) -> String {
         });
     format!("Registrazione video: {detail}")
 }
-pub fn prepare(state: &AppState, settings: &Settings, directory: &Path, region: &Region) -> Result<Prepared> {
+pub fn prepare(app: &tauri::AppHandle, state: &AppState, settings: &Settings, directory: &Path, region: &Region) -> Result<Prepared> {
     std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
     let error_path = directory.join("video-error.log");
     let pending = WARMUP.guard().take();
@@ -261,7 +277,7 @@ pub fn prepare(state: &AppState, settings: &Settings, directory: &Path, region: 
     };
     let worker = match warmed {
         Some(worker) => worker,
-        None => WarmWorker::spawn(settings, state)?,
+        None => WarmWorker::spawn(app, settings, state)?,
     };
     let WarmWorker { child, mut input, output, mut errors, .. } = worker;
     let mut log = std::fs::File::create(&error_path).map_err(|e| e.to_string())?;
@@ -280,6 +296,14 @@ pub fn prepare(state: &AppState, settings: &Settings, directory: &Path, region: 
     });
     match rx.recv_timeout(Duration::from_secs(15)) {
         Ok(line) if line.trim() == "ready" => Ok(Prepared { child, input, error: error_path }),
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+            child.cancel();
+            let _ = error_reader.join();
+            Err(crate::locale::tr(
+                "La registrazione schermo non è partita entro 15 secondi. Riprova.",
+                "Screen recording did not start within 15 seconds. Try again.",
+            ).into())
+        }
         _ => {
             child.cancel();
             let _ = error_reader.join();
@@ -408,7 +432,7 @@ mod tests {
         for action in ["reuse", "cancel", "stale", "cancel_before_spawn"] {
             let (sender, result) = std::sync::mpsc::channel();
             let cancelled = Arc::new(std::sync::atomic::AtomicBool::new(false));
-            let mut pending = Some(Warmup { result, cancelled: cancelled.clone() });
+            let mut pending = Some(Warmup { key: key.clone(), result, cancelled: cancelled.clone() });
             if action == "cancel_before_spawn" { drop(pending.take()); }
             let mut process = Command::new("powershell.exe")
                 .args(["-NoProfile", "-Command", "[Console]::WriteLine('warmed'); Start-Sleep -Seconds 30"])
@@ -420,7 +444,7 @@ mod tests {
             let errors = process.stderr.take().unwrap();
             let child = Arc::new(EngineChild::new(process).unwrap());
             let identity = Arc::as_ptr(&child);
-            let worker = WarmWorker { key: key.clone(), child, input, output, errors };
+            let worker = WarmWorker { child, input, output, errors };
             if action == "cancel_before_spawn" {
                 assert!(sender.send(Ok(worker)).is_err());
             } else {

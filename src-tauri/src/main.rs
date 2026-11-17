@@ -483,6 +483,11 @@ fn save_settings(app: tauri::AppHandle, state: State<Shared>, mut settings: Sett
         db::save_settings(&conn, &settings)?;
     }
     drop(conn);
+    if settings.keep_video {
+        video::warm_up(&app, state.inner(), &settings);
+    } else if old.keep_video {
+        video::cancel_warmup();
+    }
     drop(_guard);
     if !status.chat_busy { state.gemini_auth.discard_chat(); }
     apply_theme(&app, &settings);
@@ -502,18 +507,15 @@ fn start_with_region(app: &tauri::AppHandle, state: &Shared, region: Option<vide
         return show_recorder(app, true);
     }
     if state.provision.0.guard().running { return Err("Installazione del motore in corso. Attendi il completamento.".into()); }
-    let mut settings = db::get_settings(&state.db.guard())?;
+    let settings = db::get_settings(&state.db.guard())?;
     settings.validate()?;
     stt::ensure_ready(&settings)?;
     if settings.keep_video && region.is_none() { return video::select(app, state, &settings); }
     if region.is_some() && !settings.keep_video { return Err("La registrazione video è stata disattivata. Avvia di nuovo la registrazione.".into()); }
-    if region.is_some() && settings.remote_stt() {
-        settings.python_bin = provision::media_python(app)?.to_string_lossy().into_owned();
-    }
     let id = uuid::Uuid::new_v4().to_string();
     let dir = temp_dir(state, &id)?;
     let prepared_video = if let Some(region) = region.as_ref() {
-        match video::prepare(state, &settings, &dir, region) {
+        match video::prepare(app, state, &settings, &dir, region) {
             Ok(prepared) => {
                 std::fs::write(dir.join("keep-video"), b"").map_err(|e| e.to_string())?;
                 Some(prepared)
@@ -1040,6 +1042,21 @@ async fn audio_outputs() -> Result<Vec<audio::AudioOutput>> {
     tauri::async_runtime::spawn_blocking(audio::outputs).await.map_err(|e| e.to_string())?
 }
 #[tauri::command]
+async fn audio_inputs() -> Result<Vec<audio::AudioOutput>> {
+    tauri::async_runtime::spawn_blocking(audio::inputs).await.map_err(|e| e.to_string())?
+}
+/// Switches the microphone of the running recording without stopping it.
+#[tauri::command]
+fn set_recording_microphone(state: State<'_, Shared>, id: String) -> Result<()> {
+    if id.len() > 4096 || id.chars().any(char::is_control) {
+        return Err("Microfono non valido".into());
+    }
+    let recorder = state.recorder.guard();
+    let recording = recorder.as_ref().ok_or("Nessuna registrazione in corso")?;
+    *recording.microphone_route.guard() = id;
+    Ok(())
+}
+#[tauri::command]
 async fn start_recording(app: tauri::AppHandle, state: State<'_, Shared>) -> Result<()> {
     let state = state.inner().clone();
     tauri::async_runtime::spawn_blocking(move || start_core(&app, &state))
@@ -1358,11 +1375,12 @@ fn main() {
             std::thread::spawn(move||loop{std::thread::sleep(Duration::from_secs(3600));match cleanup_archive(&handle,&periodic){Err(e)=>{let _=handle.emit("app-error",e);},_=>{}}});
             if let Some(window)=app.get_webview_window("main"){let _=window.show();}
             if let Err(error)=ensure_engine(app.handle(), &state){state.provision.0.guard().error=Some(error);}
+            video::warm_up(app.handle(), &state, &settings);
             telegram::start(app.handle().clone(), state);
             Ok(())
         })
         .on_window_event(|window,event|{if let tauri::WindowEvent::CloseRequested{api,..}=event{api.prevent_close();if window.label()=="screenshot-area"{let app=window.app_handle().clone();let state=app.state::<Shared>().inner().clone();tauri::async_runtime::spawn_blocking(move||{if let Err(error)=screen::cancel_selection(&app,&state){let _=app.emit("app-error",error);}});}else if window.label()=="video-area"{let _=video::video_cancel_selection(window.app_handle().clone());}else if window.label()=="recorder"{let _=show_recorder(window.app_handle(),false);}else{let _=window.hide();}}})
-        .invoke_handler(tauri::generate_handler![custom_endpoint::custom_endpoint_key,custom_endpoint::open_endpoint_guide,custom_endpoint::test_custom_endpoint,sharing::sharing_pick_folder,sharing::sharing_webhook,sharing::publish_transcript,sharing::publication_status,sharing::list_shared_transcripts,sharing::get_shared_transcript,sharing::open_shared_assistant,locale::ui_language,process::ollama_context_estimate,qwen_tts::qwen_tts_status,qwen_tts::qwen_tts_prepare,ollama::ollama_download,ollama::ollama_models,ollama::ollama_model_context,piper::piper_status,piper::piper_download,kokoro::kokoro_status,kokoro::kokoro_download,tts::tts_catalog,stt::stt_key_status,stt::stt_save_key,stt::stt_delete_key,tts::tts_key_status,tts::tts_save_key,tts::tts_delete_key,import_media::import_media,telegram::telegram_status,telegram::telegram_connect,telegram::telegram_disconnect,mac_permissions::reset_capture_permissions,audio_outputs,set_call_tags,video::prepare_call_video,video::video_drawing,video::video_monitors,video::video_select_monitor,video::video_cancel_selection,video::video_start_selection,video::video_hint_ready,video::open_call_video,chat_files::save_generated,chat_files::reveal_generated,sources::chat_sources,sources::add_chat_sources,sources::set_chat_source,sources::remove_chat_source,sources::reveal_chat_source,sources::reveal_chat_file,updates::update_status,updates::check_update,updates::install_update,call_notes::open_call_note,call_notes::get_call_note,call_notes::save_call_note,call_notes::cancel_call_note,drawing_interaction::set_drawing_interaction,screen_dock::dock_recorder,screen_dock::recorder_dock_status,screen_dock::recorder_frame_ready,screen::toggle_drawing,screen::drawing_frame,screen::capture_screenshot,screen::screenshot_monitors,screen::screenshot_select_monitor,screen::screenshot_cancel_selection,screen::screenshot_finish_selection,screen::screenshot_image,screen::set_brush,list_calls,list_tags,get_call,prepare_call_audio,open_call_audio,get_settings,get_status,get_health,save_settings,start_recording,stop_recording,retry_processing,processing::cancel_processing,rename_call,delete_call,export_markdown,save_markdown,cleanup,chat,recorder_size,claude_auth_status,claude_login,claude_login_code,claude_login_cancel,claude_login_browser,set_chat_model,set_assistant_provider,claude_models,claude_connectors,claude_connectors_browser,set_connector_enabled,test_notification,chat_permission,chat_permission_answer,chat_progress,revoke_tool_trust,chat_cancel,reset_chat,set_theme,shortcut_capture,engine_setup,engine_setup_status])
+        .invoke_handler(tauri::generate_handler![custom_endpoint::custom_endpoint_key,custom_endpoint::open_endpoint_guide,custom_endpoint::test_custom_endpoint,sharing::sharing_pick_folder,sharing::sharing_webhook,sharing::publish_transcript,sharing::publication_status,sharing::list_shared_transcripts,sharing::get_shared_transcript,sharing::open_shared_assistant,locale::ui_language,process::ollama_context_estimate,qwen_tts::qwen_tts_status,qwen_tts::qwen_tts_prepare,ollama::ollama_download,ollama::ollama_models,ollama::ollama_model_context,piper::piper_status,piper::piper_download,kokoro::kokoro_status,kokoro::kokoro_download,tts::tts_catalog,stt::stt_key_status,stt::stt_save_key,stt::stt_delete_key,tts::tts_key_status,tts::tts_save_key,tts::tts_delete_key,import_media::import_media,telegram::telegram_status,telegram::telegram_connect,telegram::telegram_disconnect,mac_permissions::reset_capture_permissions,audio_outputs,audio_inputs,set_recording_microphone,set_call_tags,video::prepare_call_video,video::video_drawing,video::video_monitors,video::video_select_monitor,video::video_cancel_selection,video::video_start_selection,video::video_hint_ready,video::open_call_video,chat_files::save_generated,chat_files::reveal_generated,sources::chat_sources,sources::add_chat_sources,sources::set_chat_source,sources::remove_chat_source,sources::reveal_chat_source,sources::reveal_chat_file,updates::update_status,updates::check_update,updates::install_update,call_notes::open_call_note,call_notes::get_call_note,call_notes::save_call_note,call_notes::cancel_call_note,drawing_interaction::set_drawing_interaction,screen_dock::dock_recorder,screen_dock::recorder_dock_status,screen_dock::recorder_frame_ready,screen::toggle_drawing,screen::drawing_frame,screen::capture_screenshot,screen::screenshot_monitors,screen::screenshot_select_monitor,screen::screenshot_cancel_selection,screen::screenshot_finish_selection,screen::screenshot_image,screen::set_brush,list_calls,list_tags,get_call,prepare_call_audio,open_call_audio,get_settings,get_status,get_health,save_settings,start_recording,stop_recording,retry_processing,processing::cancel_processing,rename_call,delete_call,export_markdown,save_markdown,cleanup,chat,recorder_size,claude_auth_status,claude_login,claude_login_code,claude_login_cancel,claude_login_browser,set_chat_model,set_assistant_provider,claude_models,claude_connectors,claude_connectors_browser,set_connector_enabled,test_notification,chat_permission,chat_permission_answer,chat_progress,revoke_tool_trust,chat_cancel,reset_chat,set_theme,shortcut_capture,engine_setup,engine_setup_status])
         .build(tauri::generate_context!()).expect("Impossibile avviare PARLO").run(|app,event|{if matches!(event,tauri::RunEvent::Exit){let state=app.state::<Shared>();state.auth.cancel();state.codex_auth.cancel();state.gemini_auth.cancel();state.engine.guard().take();state.live_engine.guard().take();}});
 }
 

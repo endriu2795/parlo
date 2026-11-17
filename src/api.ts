@@ -17,6 +17,8 @@ export const desktop = isTauri();
 export const api = {
   drawingFrame: (token: string | null = null) => invoke<string | null>("drawing_frame", { token }),
   audioOutputs: () => invoke<{ id: string; name: string }[]>("audio_outputs"),
+  audioInputs: () => invoke<{ id: string; name: string }[]>("audio_inputs"),
+  setRecordingMicrophone: (id: string) => invoke<void>("set_recording_microphone", { id }),
   sources: (id: string) => invoke<import("./types").SourceInventory>("chat_sources", { id }),
   addSources: (id: string, folder = false, shared = false) => invoke<import("./types").SourceInventory>("add_chat_sources", { id, folder, shared }),
   setSource: (id: string, sourceId: string, enabled: boolean) => invoke<import("./types").SourceInventory>("set_chat_source", { id, sourceId, enabled }),
