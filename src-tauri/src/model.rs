@@ -63,6 +63,7 @@ pub struct Settings {
     pub keep_video: bool,
     pub dictionary: Vec<DictionaryEntry>,
     pub microphone: bool,
+    pub microphone_input: String,
     pub microphone_voice_boost: bool,
     pub system_audio: bool,
     pub system_audio_output: String,
@@ -141,6 +142,7 @@ impl Default for Settings {
             keep_video: false,
             dictionary: vec![],
             microphone: true,
+            microphone_input: String::new(),
             microphone_voice_boost: true,
             system_audio: true,
             system_audio_output: String::new(),
@@ -363,6 +365,9 @@ impl Settings {
         }
         if self.system_audio_output.len() > 4096 || self.system_audio_output.chars().any(char::is_control) {
             return Err("Uscita audio non valida.".into());
+        }
+        if self.microphone_input.len() > 4096 || self.microphone_input.chars().any(char::is_control) {
+            return Err(crate::locale::tr("Microfono non valido.", "Invalid microphone.").into());
         }
         if self.dictionary.len() > 100 || self.dictionary.iter().any(|entry| {
             entry.term.trim().is_empty() || entry.term.chars().count() > 80 || entry.term.chars().any(char::is_control)
@@ -675,16 +680,22 @@ mod tests {
         assert!(settings.validate().is_err());
     }
     #[test]
-    fn audio_output_is_backward_compatible_and_persists_the_selected_route() {
+    fn audio_routes_are_backward_compatible_and_persist_selections() {
         let mut settings: super::Settings = serde_json::from_value(serde_json::json!({})).unwrap();
         assert!(settings.system_audio_output.is_empty());
+        assert!(settings.microphone_input.is_empty());
+        settings.microphone_input = "synthetic-microphone".into();
         for route in ["@communications", "synthetic-endpoint"] {
             settings.system_audio_output = route.into();
             settings.validate().unwrap();
             let saved: super::Settings = serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
             assert_eq!(saved.system_audio_output, route);
+            assert_eq!(saved.microphone_input, "synthetic-microphone");
         }
         settings.system_audio_output = "invalid\nendpoint".into();
+        assert!(settings.validate().is_err());
+        settings.system_audio_output.clear();
+        settings.microphone_input = "invalid\nendpoint".into();
         assert!(settings.validate().is_err());
     }
     #[cfg(windows)]

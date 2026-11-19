@@ -1,6 +1,6 @@
 import EndpointFields from "./EndpointFields";
 import { t } from "../i18n";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Download, LoaderCircle } from "lucide-react";
 import { api } from "../api";
 import ApiKeyField from "../ApiKeyField";
@@ -9,6 +9,32 @@ import { Actions, Advanced, Field, Group, Hint, OptionCards, Switch, type Engine
 import { availableModels, calibrationLabel, modelDescription, modelIdFor, modelTitle, previewReady, type WhisperModel } from "./models";
 
 type Props = SectionProps & { engine: EngineControls; updateBusy: boolean; onRefresh: () => Promise<void> };
+
+function DefaultMicrophonePicker({ value, disabled, onChange }: { value: string; disabled: boolean; onChange: (id: string) => void }) {
+  const [inputs, setInputs] = useState<Awaited<ReturnType<typeof api.audioInputs>> | null>(null);
+  const [error, setError] = useState("");
+  const refresh = useCallback(() => {
+    void api.audioInputs().then(devices => {
+      setInputs(devices);
+      setError("");
+    }).catch(e => setError(String(e)));
+  }, []);
+  useEffect(refresh, [refresh]);
+
+  const selectionMissing = value && !inputs?.some(input => input.id === value);
+  return <>
+    <Field label={t("Microfono predefinito")} hint={t("Usato nelle nuove registrazioni.")}>
+      <select value={value} disabled={disabled} onFocus={refresh} onChange={event => onChange(event.target.value)}>
+        <option value="">{t("Predefinito di Windows")}</option>
+        {inputs?.map(input => <option value={input.id} key={input.id}>{input.name}</option>)}
+        {selectionMissing && <option value={value}>
+          {inputs && !error ? t("Microfono selezionato non disponibile") : t("Microfono selezionato")}
+        </option>}
+      </select>
+    </Field>
+    {error && <Hint tone="error">{error}</Hint>}
+  </>;
+}
 
 function EngineStatus({ health, engine }: Pick<Props, "health" | "engine">) {
   const { setup } = engine;
@@ -74,6 +100,8 @@ export default function RecordingSection({ draft, update, busy, health, setError
   return <>
     <Group title={t("Cosa registrare")}>
       <Switch label={t("Microfono")} hint={t("La tua voce.")} checked={draft.microphone} onChange={microphone => update({ microphone })} />
+      {health?.windows_capture && draft.microphone && <DefaultMicrophonePicker value={draft.microphone_input || ""} disabled={busy}
+        onChange={microphone_input => update({ microphone_input })} />}
       <Switch label={t("Audio del computer")} hint={t("Le voci degli altri partecipanti alla call.")} checked={draft.system_audio} onChange={system_audio => update({ system_audio })} />
       <Field label={t("Lingua della call")}>
         <select value={draft.language} onChange={event => update({ language: event.target.value })}>

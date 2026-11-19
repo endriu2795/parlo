@@ -376,7 +376,14 @@ pub(super) fn capture(
     let initialized = (|| -> Result<_, String> {
         let watch = EndpointWatch::new(direction, output).map_err(|e| e.to_string())?;
         let (id, device) = watch.endpoint(direction).map_err(|e| {
-            if source == "system" && !output.is_empty() { format!("Uscita audio selezionata non disponibile. Ricollegala o scegli un'altra uscita nelle impostazioni. ({e})") }
+            if source == "microphone" && !output.is_empty() {
+                let message = crate::locale::tr(
+                    "Il microfono selezionato non è disponibile. Ricollegalo o scegline un altro nelle impostazioni.",
+                    "The selected microphone is unavailable. Reconnect it or choose another one in Settings.",
+                );
+                format!("{message} ({e})")
+            }
+            else if source == "system" && !output.is_empty() { format!("Uscita audio selezionata non disponibile. Ricollegala o scegli un'altra uscita nelle impostazioni. ({e})") }
             else { e.to_string() }
         })?;
         let writer = open_track(file)?;

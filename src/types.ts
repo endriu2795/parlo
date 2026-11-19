@@ -18,6 +18,7 @@ export type Settings = {
   keep_video?: boolean;
   dictionary?: { term: string }[];
   microphone: boolean;
+  microphone_input?: string;
   microphone_voice_boost?: boolean;
   system_audio: boolean;
   system_audio_output?: string;

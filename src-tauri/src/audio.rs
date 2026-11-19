@@ -219,7 +219,7 @@ pub fn start(
         let mut handles = Vec::new();
         let clock_origin = clock_hns()?;
         let (tx, rx) = mpsc::channel();
-        let microphone_route = Arc::new(Mutex::new(String::new()));
+        let microphone_route = Arc::new(Mutex::new(settings.microphone_input.clone()));
         for source in ["microphone", "system"] {
             if (source == "microphone" && !settings.microphone)
                 || (source == "system" && !settings.system_audio)
