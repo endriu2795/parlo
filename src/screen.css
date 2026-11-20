@@ -772,23 +772,39 @@ html.capturing-screen .drawing-overlay {
   letter-spacing: .02em;
   line-height: 1;
 }
-/* A docked recorder is easy to ignore: a dead microphone turns it amber and pulses. */
 .recorder-edge-tab.mic-warning,
 .recorder-edge-tab.mic-warning:hover,
 .recorder-edge-tab.mic-warning:active {
-  color: #1d1406;
-  background: #f0a830;
-  border-color: #f0a830;
-  animation: recorder-mic-pulse 1.2s ease-in-out infinite;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 11px;
+  grid-template-rows: 1fr 1fr;
+  gap: 0 2px;
+  padding: 4px 3px;
+  color: #251501;
+  background: #ffd489;
+  border-color: #e3a343;
 }
-.recorder-edge-tab.mic-warning .recorder-tab-label {
-  color: #1d1406;
+.recorder-edge-tab.mic-warning:hover {
+  background: #ffdfaa;
 }
-@keyframes recorder-mic-pulse {
-  50% { background: #b86f0c; border-color: #b86f0c; }
+.recorder-edge-tab.mic-warning > svg {
+  grid-column: 2;
+  grid-row: 1;
 }
-@media (prefers-reduced-motion: reduce) {
-  .recorder-edge-tab.mic-warning { animation: none; }
+.recorder-edge-tab.mic-warning > svg:last-child {
+  grid-row: 2;
+}
+.recorder-tab-warning-text {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  justify-self: center;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  text-align: left;
 }
 @media (max-width: 800px) {
   .annotation-toolbar .annotation-interact > span {

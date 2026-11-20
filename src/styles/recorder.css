@@ -18,7 +18,7 @@ body:has(.recorder) {
   display: flex;
   align-items: center;
   gap: 4px;
-  height: 44px;
+  flex: 0 0 44px;
   padding: 6px 8px 6px 14px;
   border-bottom: 1px solid var(--line);
 }
@@ -137,7 +137,7 @@ body:has(.recorder) {
   filter: brightness(1.08);
 }
 .recorder.compact .recorder-header {
-  height: 100%;
+  flex-basis: 100%;
   border: 0;
 }
 
@@ -214,37 +214,48 @@ body:has(.recorder) {
   color: var(--warning);
 }
 .recorder-mic-warning {
-  display: flex;
+  display: grid;
   flex: 1;
-  flex-direction: column;
-  justify-content: center;
-  gap: 6px;
+  align-content: center;
+  gap: 8px;
   min-height: 0;
-  padding: 6px 14px;
+  padding: 10px 14px;
+  overflow: auto;
   background: var(--warning-soft);
 }
-.recorder-mic-warning p {
-  display: flex;
-  gap: 7px;
-  margin: 0;
+.recorder-mic-warning-message {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+}
+.recorder-mic-warning-message strong {
   color: var(--text);
+  font-size: var(--text-sm);
+}
+.recorder-mic-warning-message p {
+  margin: 3px 0 0;
+  color: var(--muted);
   font-size: var(--text-xs);
   line-height: 1.35;
 }
-.recorder-mic-warning p > svg {
-  flex-shrink: 0;
+.recorder-mic-warning-message > svg {
   margin-top: 1px;
   color: var(--warning);
 }
-.recorder-mic-warning > div {
+.recorder-mic-warning-actions {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 .recorder-mic-warning select.recorder-mic {
+  width: 0;
   flex: 1;
   min-width: 0;
   height: 26px;
   padding: 0 6px;
   font-size: var(--text-xs);
+}
+.recorder-mic-warning-actions button {
+  flex: none;
 }

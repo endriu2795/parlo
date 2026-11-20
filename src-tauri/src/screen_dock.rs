@@ -24,16 +24,23 @@ struct Placement {
 pub struct RecorderDock {
     restore_position: Mutex<Option<PhysicalPosition<i32>>>,
     compact: AtomicBool,
+    microphone_warning: AtomicBool,
     pending_frame: Mutex<Option<String>>,
 }
 
 pub const EXPANDED_SIZE: LogicalSize<f64> = LogicalSize::new(440., 188.);
+const EXPANDED_WARNING_SIZE: LogicalSize<f64> = LogicalSize::new(440., 228.);
 const COMPACT_SIZE: LogicalSize<f64> = LogicalSize::new(238., 52.);
 
 pub fn resize(window: &tauri::WebviewWindow, expanded: bool) -> Result<()> {
-    window.set_size(if expanded { EXPANDED_SIZE } else { COMPACT_SIZE })
-        .map_err(|e| e.to_string())?;
-    window.app_handle().state::<RecorderDock>().compact.store(!expanded, Ordering::Relaxed);
+    let dock = window.app_handle().state::<RecorderDock>();
+    let size = match (expanded, dock.microphone_warning.load(Ordering::Relaxed)) {
+        (true, true) => EXPANDED_WARNING_SIZE,
+        (true, false) => EXPANDED_SIZE,
+        (false, _) => COMPACT_SIZE,
+    };
+    window.set_size(size).map_err(|e| e.to_string())?;
+    dock.compact.store(!expanded, Ordering::Relaxed);
     let _ = window.emit("recorder-expanded", expanded);
     Ok(())
 }
@@ -99,6 +106,9 @@ pub fn restore(app: &tauri::AppHandle) -> Result<()> {
     Ok(())
 }
 pub fn reset(app: &tauri::AppHandle) {
+    if let Some(dock) = app.try_state::<RecorderDock>() {
+        dock.microphone_warning.store(false, Ordering::Relaxed);
+    }
     let _ = restore(app);
 }
 pub fn raise_recorder(app: &tauri::AppHandle) {
@@ -198,6 +208,43 @@ pub async fn recorder_frame_ready(
 #[tauri::command]
 pub fn recorder_dock_status(app: tauri::AppHandle) -> Option<Edge> {
     app.try_state::<RecorderDock>().and_then(|state| state.restore_position.guard().as_ref().map(|_| Edge::Right))
+}
+
+#[tauri::command]
+pub async fn recorder_microphone_warning(
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, Shared>,
+    capture_id: String,
+    active: bool,
+) -> Result<()> {
+    if window.label() != "recorder" {
+        return Err("Comando riservato all’indicatore di registrazione".into());
+    }
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _operation = state.operation.guard();
+        if state.status.guard().capture.as_ref().is_none_or(|capture| capture.id != capture_id) {
+            return Ok(());
+        }
+        let app = window.app_handle();
+        let managed = app.state::<RecorderDock>();
+        let previous = managed.microphone_warning.swap(active, Ordering::Relaxed);
+        if previous == active {
+            return Ok(());
+        }
+        let docked = managed.restore_position.guard().is_some();
+        let result = if !docked && !managed.compact.load(Ordering::Relaxed) {
+            resize(&window, true)
+        } else {
+            Ok(())
+        };
+        if result.is_err() {
+            managed.microphone_warning.store(previous, Ordering::Relaxed);
+        }
+        result
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

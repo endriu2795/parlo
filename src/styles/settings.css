@@ -263,6 +263,49 @@
   align-items: center;
   gap: 8px;
 }
+.telegram-steps,
+.telegram-steps > div,
+.telegram-steps > form {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.telegram-steps > form {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+.telegram-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+}
+.telegram-state > svg {
+  flex: none;
+  color: var(--accent);
+}
+.telegram-state p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+.telegram-code {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.telegram-code code {
+  user-select: all;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  letter-spacing: .08em;
+}
 .settings-cleanup {
   color: var(--danger);
 }

@@ -219,6 +219,37 @@ pub fn telegram_status(window: WebviewWindow, state: State<'_, Shared>) -> Resul
     status(&window.app_handle().state::<Telegram>(), &state.db.guard())
 }
 
+#[tauri::command]
+pub fn telegram_open_chat(window: WebviewWindow, bot_father: bool) -> Result<()> {
+    main_window(&window)?;
+    let url = if bot_father {
+        "https://t.me/BotFather".to_owned()
+    } else {
+        let runtime = window.app_handle().state::<Telegram>();
+        let session = runtime.session.guard().clone().ok_or_else(|| {
+            tr("Collega un bot prima di aprire la chat.", "Connect a bot before opening its chat.")
+        })?;
+        let username = &session.bot.username;
+        if username.is_empty() || !username.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_') {
+            return Err(tr("Nome del bot non valido.", "Invalid bot username.").into());
+        }
+        match &session.destination {
+            Destination::Pairing { code, expires } if Instant::now() < *expires => {
+                format!("https://t.me/{username}?start={code}")
+            }
+            Destination::Pairing { .. } => {
+                return Err(tr("Codice scaduto. Ricollega il bot.", "Code expired. Reconnect the bot.").into());
+            }
+            Destination::Linked { .. } => format!("https://t.me/{username}"),
+        }
+    };
+    let program = if cfg!(windows) { "explorer.exe" } else if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+    std::process::Command::new(program).arg(url).spawn().map_err(|_| {
+        tr("Impossibile aprire Telegram.", "Could not open Telegram.").to_owned()
+    })?;
+    Ok(())
+}
+
 fn pairing_session(
     token: &str,
     mut check: impl FnMut(&str) -> std::result::Result<Value, ApiError>,
@@ -427,6 +458,15 @@ fn media(message: &Value) -> Option<Media<'_>> {
     })
 }
 
+fn matches_pairing_code(text: &str, code: &str) -> bool {
+    let mut parts = text.split_whitespace();
+    match parts.next() {
+        Some("/start") => parts.next() == Some(code) && parts.next().is_none(),
+        Some(value) => value == code && parts.next().is_none(),
+        None => false,
+    }
+}
+
 fn receive(
     client: &Client,
     runtime: &Telegram,
@@ -448,7 +488,7 @@ fn receive(
             if Instant::now() < *expires
                 && message["text"]
                     .as_str()
-                    .is_some_and(|text| text.trim() == code)
+                    .is_some_and(|text| matches_pairing_code(text, code))
             {
                 link(runtime, state, session, chat)?;
                 reply(
@@ -753,6 +793,16 @@ pub fn start(app: AppHandle, state: Shared) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pairing_accepts_the_telegram_start_link_and_manual_code() {
+        for text in [" ABCDEF012345 ", "/start ABCDEF012345"] {
+            assert!(matches_pairing_code(text, "ABCDEF012345"));
+        }
+        for text in ["/start", "/start WRONG", "/start ABCDEF012345 extra", "ABCDEF012345 extra"] {
+            assert!(!matches_pairing_code(text, "ABCDEF012345"));
+        }
+    }
 
     #[test]
     fn silent_telegram_server_produces_a_timeout_error() {

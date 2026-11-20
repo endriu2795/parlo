@@ -67,6 +67,7 @@ export const api = {
     username: string | null; pairing_code: string | null; connected: boolean; pending: number; error: string | null;
   }>("telegram_status"),
   telegramConnect: (token: string) => invoke<void>("telegram_connect", { token }),
+  telegramOpenChat: (botFather = false) => invoke<void>("telegram_open_chat", { botFather }),
   telegramDisconnect: () => invoke<void>("telegram_disconnect"),
   stop: () => invoke<void>("stop_recording"),
   toggleDrawing: (tool?: "brush" | "text" | "shape") => invoke<void>("toggle_drawing", {tool:tool??null}),
@@ -74,6 +75,8 @@ export const api = {
   dockRecorder: (edge: import("./types").DockEdge | null) => invoke<void>("dock_recorder", {edge}),
   recorderDockStatus: () => invoke<import("./types").DockEdge | null>("recorder_dock_status"),
   recorderFrameReady: (captureId: string) => invoke<void>("recorder_frame_ready", { captureId }),
+  recorderMicrophoneWarning: (captureId: string, active: boolean) =>
+    invoke<void>("recorder_microphone_warning", { captureId, active }),
   drawingInteraction: (passthrough: boolean, regions: {x: number; y: number; width: number; height: number}[]) => invoke<void>("set_drawing_interaction", {passthrough, regions}),
   screenshotImage: (callId: string, imageId: string, thumbnail = true) => invoke<string>("screenshot_image", { callId, imageId, thumbnail }),
   setBrush: (color: string, size: number) => invoke<void>("set_brush", { color, size }),

@@ -53,8 +53,9 @@ transcribes it. The original file stays where it is.
 
 ### Receiving voice messages from Telegram
 
-In **Settings → Telegram** you can connect a personal bot: create it with
-@BotFather using `/newbot` and paste the token into PARLO. You can then send
+In **Settings → Telegram**, create a bot with `/newbot` in @BotFather and
+paste its token into PARLO. Select **Continue**, then **Open bot in Telegram**
+and **Start** in the chat. Once PARLO shows the bot as connected, you can send
 voice messages, audio, or video files (up to 20 MB) to the bot, even from your
 phone, and PARLO transcribes them with the current settings. If the app is
 closed, messages are fetched when it reopens, within Telegram's 24-hour limit.

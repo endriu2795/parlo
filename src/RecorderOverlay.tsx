@@ -32,17 +32,19 @@ function MicrophonePicker({ health, onError }: { health: MicHealth; onError: (er
 }
 
 function MicWarning({ health, onDismiss, onError }: { health: MicHealth; onDismiss: () => void; onError: (error: string) => void }) {
-  const name = health.device || t("microfono");
   return <div className="recorder-mic-warning" role="alert">
-    <p>
-      <TriangleAlert size={14} />
-      {health.state === "silent"
-        ? t("Nessun segnale da {0}. Se stai parlando, controlla le cuffie o cambia microfono.", name)
-        : t("{0} non risponde. Ricollega le cuffie o scegli un altro microfono.", name)}
-    </p>
-    <div>
+    <div className="recorder-mic-warning-message">
+      <TriangleAlert size={16} aria-hidden="true" />
+      <div>
+        <strong>{health.state === "silent" ? t("Nessun segnale dal microfono") : t("Microfono non disponibile")}</strong>
+        <p>{health.state === "silent"
+          ? t("Se stai parlando, controlla le cuffie o cambia microfono.")
+          : t("Ricollega le cuffie o scegli un altro microfono.")}</p>
+      </div>
+    </div>
+    <div className="recorder-mic-warning-actions">
       <MicrophonePicker health={health} onError={onError} />
-      <button className="text-button" onClick={onDismiss}>{t("Ignora")}</button>
+      <button type="button" className="text-button" onClick={onDismiss}>{t("Ignora")}</button>
     </div>
   </div>;
 }
@@ -94,12 +96,14 @@ export default function RecorderOverlay() {
   const [expanded, setExpanded] = useState(true);
   const [dock, setDock] = useState<DockEdge | null>();
   const dockRevision = useRef(0);
+  const warningLayout = useRef(Promise.resolve());
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [visible, setVisible] = useState(!document.hidden);
   const captureId = capture?.id;
+  const micWarning = !!capture?.microphone && health.state !== "ok" && !dismissed;
   // The recorder needs only capture identity, not streamed transcript/status
   // updates that would otherwise also rerender the small docked REC tab.
   const receiveStatus = useCallback((value: Status) => {
@@ -177,6 +181,12 @@ export default function RecorderOverlay() {
     const timer = setTimeout(() => setMessage(""), 3500);
     return () => clearTimeout(timer);
   }, [message]);
+  useEffect(() => {
+    if (!captureId) return;
+    warningLayout.current = warningLayout.current
+      .then(() => api.recorderMicrophoneWarning(captureId, micWarning))
+      .catch(e => setError(String(e)));
+  }, [captureId, micWarning]);
 
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true);
@@ -195,19 +205,24 @@ export default function RecorderOverlay() {
     void api.recorderSize(value).catch(e => setError(String(e)));
   };
 
-  const micWarning = capture?.microphone && health.state !== "ok" && !dismissed;
   // Wait for the native placement before rendering the panel into the small tab window.
   if (dock === undefined) return null;
   if (dock) {
+    const warningTitle = health.state === "silent" ? t("Nessun segnale dal microfono") : t("Microfono non disponibile");
     return (
       <button className={`recorder-edge-tab${micWarning ? " mic-warning" : ""}`}
         aria-label={micWarning ? t("Problema al microfono: mostra controlli") : t("Registrazione in corso: mostra controlli")}
-        title={micWarning ? t("Nessun segnale dal microfono") : undefined}
-        onClick={() => void api.dockRecorder(null).catch(e => setError(String(e)))}>
+        title={micWarning ? warningTitle : undefined}
+        onClick={() => {
+          const opening = micWarning ? api.recorderSize(true) : api.dockRecorder(null);
+          void opening.catch(e => setError(String(e)));
+        }}>
         {micWarning
-          ? <><MicOff size={14} /><span className="recorder-tab-label">MIC</span></>
+          ? <><TriangleAlert size={11} aria-hidden="true" /><span className="recorder-tab-warning-text">
+            {health.state === "silent" ? t("Mic a zero") : t("Mic assente")}
+          </span></>
           : <><span className="recorder-tab-dot" /><span className="recorder-tab-label">REC</span></>}
-        <ChevronLeft size={15} />
+        <ChevronLeft size={micWarning ? 11 : 15} aria-hidden="true" />
       </button>
     );
   }
@@ -227,7 +242,7 @@ export default function RecorderOverlay() {
           {micWarning && !expanded && <MicOff size={14} className="recorder-mic-alert" />}
           <strong>
             {micWarning && !expanded
-              ? (health.state === "silent" ? t("Mic muto") : t("Mic non disponibile"))
+              ? (health.state === "silent" ? t("Mic senza segnale") : t("Mic non disponibile"))
               : anyReconnecting && !expanded ? t("Riconnessione…") : expanded ? "PARLO" : t("Registrazione")}
           </strong>
           <span className="mono">{fmtTime(elapsed)}</span>

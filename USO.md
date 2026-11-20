@@ -55,8 +55,9 @@ Il file originale resta dov’era.
 
 ### Ricevere vocali da Telegram
 
-In **Impostazioni → Telegram** puoi collegare un bot personale: crealo con
-@BotFather, usa `/newbot` e incolla il token in PARLO. Da quel momento puoi
+In **Impostazioni → Telegram**, crea un bot con `/newbot` in @BotFather e
+incolla il token in PARLO. Premi **Continua**, poi **Apri il bot in Telegram**
+e **Avvia** nella chat. Quando PARLO mostra il bot collegato, puoi
 inviare al bot vocali, file audio o video (fino a 20 MB) anche dal telefono, e
 PARLO li trascrive con le impostazioni correnti. Se l’app è chiusa, i messaggi
 vengono recuperati alla riapertura, entro le 24 ore previste da Telegram.
