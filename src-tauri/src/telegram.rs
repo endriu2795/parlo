@@ -15,6 +15,8 @@ use std::{
 use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 
 const FILE_LIMIT: u64 = 20 * 1024 * 1024;
+const PAIRING_REQUEST_TIMEOUT: Duration = Duration::from_secs(8);
+const API_REQUEST_TIMEOUT: Duration = Duration::from_secs(35);
 const INVALID_MEDIA: &str = "Invia un messaggio vocale, un file audio o un video.";
 const LINK_CHANGED: &str = "Il collegamento Telegram è cambiato.";
 
@@ -53,10 +55,10 @@ pub struct TelegramStatus {
     error: Option<String>,
 }
 
-fn client() -> Result<Client> {
+fn client(timeout: Duration) -> Result<Client> {
     Client::builder()
         .connect_timeout(Duration::from_secs(8))
-        .timeout(Duration::from_secs(35))
+        .timeout(timeout)
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|_| "Impossibile inizializzare Telegram.".into())
@@ -82,7 +84,18 @@ fn valid_token(token: &str) -> bool {
 #[derive(Debug)]
 enum ApiError {
     Unavailable,
+    Timeout,
     Rejected(u16),
+}
+
+impl From<reqwest::Error> for ApiError {
+    fn from(error: reqwest::Error) -> Self {
+        if error.is_timeout() {
+            Self::Timeout
+        } else {
+            Self::Unavailable
+        }
+    }
 }
 
 impl From<ApiError> for String {
@@ -105,6 +118,10 @@ impl From<ApiError> for String {
                 "Telegram ha rifiutato la richiesta.",
                 "Telegram rejected the request.",
             ),
+            ApiError::Timeout => tr(
+                "Telegram non ha risposto in tempo. Verifica la connessione e riprova.",
+                "Telegram took too long to respond. Check your connection and try again.",
+            ),
             ApiError::Unavailable => {
                 tr("Telegram non è raggiungibile.", "Telegram is unreachable.")
             }
@@ -118,7 +135,7 @@ fn endpoint(token: &str, method: &str) -> String {
 }
 
 fn api_reply(request: reqwest::blocking::RequestBuilder) -> std::result::Result<Value, ApiError> {
-    let response = request.send().map_err(|_| ApiError::Unavailable)?;
+    let response = request.send()?;
     if !response.status().is_success() {
         return Err(ApiError::Rejected(response.status().as_u16()));
     }
@@ -202,6 +219,34 @@ pub fn telegram_status(window: WebviewWindow, state: State<'_, Shared>) -> Resul
     status(&window.app_handle().state::<Telegram>(), &state.db.guard())
 }
 
+fn pairing_session(
+    token: &str,
+    mut check: impl FnMut(&str) -> std::result::Result<Value, ApiError>,
+) -> Result<Session> {
+    let me = check("getMe")?;
+    let id = me["id"].as_i64().ok_or("Identificatore bot non valido.")?;
+    let username = me["username"].as_str().ok_or("Nome del bot non disponibile.")?;
+    let hook = check("getWebhookInfo")?;
+    let url = hook["url"].as_str().ok_or_else(|| tr(
+        "Telegram non ha restituito lo stato del webhook.",
+        "Telegram did not return its webhook status.",
+    ))?;
+    if !url.is_empty() {
+        return Err(tr(
+            "Questo bot usa già un webhook. Crea un bot dedicato a PARLO.",
+            "This bot already uses a webhook. Create a dedicated bot for PARLO.",
+        ).into());
+    }
+    let code = uuid::Uuid::new_v4().simple().to_string()[..12].to_uppercase();
+    Ok(Session {
+        bot: Bot { id, username: username.into(), token: token.into() },
+        destination: Destination::Pairing {
+            code,
+            expires: Instant::now() + Duration::from_secs(600),
+        },
+    })
+}
+
 #[tauri::command]
 pub async fn telegram_connect(window: WebviewWindow, token: String) -> Result<()> {
     main_window(&window)?;
@@ -219,32 +264,9 @@ pub async fn telegram_connect(window: WebviewWindow, token: String) -> Result<()
             )
             .into());
         }
-        let client = client()?;
-        let me = request(&client, token, "getMe", json!({}))?;
-        let id = me["id"].as_i64().ok_or("Identificatore bot non valido.")?;
-        let username = me["username"]
-            .as_str()
-            .ok_or("Nome del bot non disponibile.")?;
-        let hook = request(&client, token, "getWebhookInfo", json!({}))?;
-        if hook["url"].as_str().is_some_and(|url| !url.is_empty()) {
-            return Err(tr(
-                "Questo bot usa già un webhook. Crea un bot dedicato a PARLO.",
-                "This bot already uses a webhook. Create a dedicated bot for PARLO.",
-            )
-            .into());
-        }
-        let code = uuid::Uuid::new_v4().simple().to_string()[..12].to_uppercase();
-        *runtime.session.guard() = Some(Arc::new(Session {
-            bot: Bot {
-                id,
-                username: username.into(),
-                token: token.into(),
-            },
-            destination: Destination::Pairing {
-                code,
-                expires: Instant::now() + Duration::from_secs(600),
-            },
-        }));
+        let client = client(PAIRING_REQUEST_TIMEOUT)?;
+        let session = pairing_session(token, |method| request(&client, token, method, json!({})))?;
+        *runtime.session.guard() = Some(Arc::new(session));
         *runtime.error.guard() = None;
         runtime.wake.notify_one();
         Ok(())
@@ -657,7 +679,7 @@ pub fn start(app: AppHandle, state: Shared) {
                 }
             }
         }
-        let client = match client() {
+        let client = match client(API_REQUEST_TIMEOUT) {
             Ok(client) => client,
             Err(error) => {
                 *runtime.error.guard() = Some(error);
@@ -731,6 +753,40 @@ pub fn start(app: AppHandle, state: Shared) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn silent_telegram_server_produces_a_timeout_error() {
+        // Leaving a listening socket open without replying simulates a stalled API.
+        let server = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let client = Client::builder()
+            .no_proxy()
+            .timeout(Duration::from_millis(300))
+            .build()
+            .unwrap();
+        let url = format!("http://{}/getMe", server.local_addr().unwrap());
+        assert!(matches!(api_reply(client.post(url)), Err(ApiError::Timeout)));
+    }
+
+    #[test]
+    fn pairing_requires_a_valid_token_and_an_empty_webhook() {
+        let token = "123456:synthetic_token";
+        let me = json!({"id":123456,"username":"parlo_test_bot"});
+        let check = |hook: Value| pairing_session(token, |method| match method {
+            "getMe" => Ok(me.clone()),
+            "getWebhookInfo" => Ok(hook.clone()),
+            _ => panic!("Unexpected Telegram method {method}"),
+        });
+        let session = check(json!({"url":""})).unwrap();
+        assert_eq!(session.bot.username, "parlo_test_bot");
+        assert!(matches!(session.destination, Destination::Pairing { code, .. } if code.len() == 12));
+        assert!(check(json!({"url":"https://example.test/hook"})).is_err());
+        assert!(check(json!({})).is_err());
+        let rejected = pairing_session(token, |method| {
+            assert_eq!(method, "getMe");
+            Err(ApiError::Rejected(401))
+        });
+        assert!(rejected.is_err());
+    }
 
     #[test]
     fn accepts_only_audio_and_video_attachments() {

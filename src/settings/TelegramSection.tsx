@@ -49,18 +49,24 @@ export default function TelegramSection() {
         <div><button type="button" className="secondary-button" disabled={busy}
           onClick={() => void run(api.telegramDisconnect)}>{t("Scollega Telegram")}</button></div>
       </> : status?.pairing_code ? <>
-        <p role="status">{t("Invia questo codice in un messaggio privato a @{0} entro 10 minuti.", status.username)}</p>
+        <p role="status">{t("Apri la chat privata con @{0}, premi Avvia se compare e invia questo codice entro 10 minuti.", status.username)}</p>
         <p><code>{status.pairing_code}</code></p>
         <div><button type="button" className="secondary-button" disabled={busy}
           onClick={() => void run(api.telegramDisconnect)}>{t("Annulla")}</button></div>
       </> : <>
         <Hint>{t("Su Telegram apri @BotFather, usa /newbot e incolla qui il token del bot dedicato a PARLO.")}</Hint>
-        <Field label={t("Token del bot Telegram")}>
-          <input aria-label={t("Token del bot Telegram")} type="password" autoComplete="off" spellCheck={false}
-            value={token} disabled={busy} onChange={event => setToken(event.target.value)} />
-        </Field>
-        <div><button type="button" className="primary-button" disabled={busy || !token.trim()}
-          onClick={() => void run(() => api.telegramConnect(token))}>{t("Collega Telegram")}</button></div>
+        <form onSubmit={event => {
+          event.preventDefault();
+          if (!busy && token.trim()) void run(() => api.telegramConnect(token));
+        }}>
+          <Field label={t("Token del bot Telegram")}>
+            <input aria-label={t("Token del bot Telegram")} type="password" autoComplete="off" spellCheck={false}
+              value={token} disabled={busy} onChange={event => setToken(event.target.value)} />
+          </Field>
+          <div><button type="submit" className="primary-button" disabled={busy || !token.trim()}>
+            {busy ? t("Verifica del token…") : t("Collega Telegram")}
+          </button></div>
+        </form>
       </>}
       {(error || status?.error) && <p className="form-error" role="alert">{error || status?.error}</p>}
     </Group>
