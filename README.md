@@ -27,20 +27,24 @@ L’app è disponibile per Windows e macOS, in italiano e inglese.
 
 - Registra il microfono, l’audio del computer o entrambi. Avvia e ferma la
   registrazione con una scorciatoia, anche mentre usi un’altra app.
-- Leggi l’anteprima della trascrizione durante la call e il testo definitivo
-  al termine.
-- Aggiungi note, screenshot e annotazioni a schermo. Su Windows puoi
-  registrare anche il video dello schermo o di un’area selezionata.
-- Su Windows i dispositivi audio possono seguire i cambi di sistema, per
-  esempio quando colleghi le cuffie.
+- Aggiungi note, screenshot e annotazioni a schermo.
+
+Microfono e audio del computer sono disponibili su Windows e Mac. Su
+Windows puoi scegliere i dispositivi da PARLO o seguire quelli predefiniti;
+su Mac il microfono segue il dispositivo predefinito del sistema, anche
+quando lo cambi durante la call. Su Windows puoi anche registrare il video
+dello schermo o di un’area selezionata. Vedi anche [PARLO su Mac](MACOS.md).
 
 ### Trascrizione
 
 - Usa Whisper sul computer, con tre livelli di velocità e precisione. Dopo
   il download del modello puoi trascrivere offline; PARLO sceglie tra
   processore e scheda grafica in base alle prestazioni.
-- In alternativa, usa Groq con la tua chiave API o un server compatibile con
-  l’API di trascrizione di OpenAI.
+- Online puoi usare **Groq** con la tua chiave API.
+- Con **Endpoint personalizzato** puoi collegare un altro servizio di
+  trascrizione, anche un server Whisper sul tuo computer o in rete. Il server
+  va configurato separatamente e deve supportare l’API di trascrizione di
+  OpenAI; in PARLO inserisci indirizzo, ID del modello e chiave API se richiesta.
 - Aggiungi nomi, sigle e prodotti al dizionario per aiutare il riconoscimento.
 - Importa file audio e video, oppure ricevi vocali e file da un bot Telegram
   personale.
@@ -49,24 +53,30 @@ L’app è disponibile per Windows e macOS, in italiano e inglese.
 
 ### Archivio
 
-- Cerca nei titoli, nei tag, nelle note e nel testo trascritto. Filtra per
-  tag e data.
-- Clicca un orario nella trascrizione per riascoltare quel passaggio.
+- Aggiungi manualmente tag alle call, per esempio per cliente, progetto o
+  argomento. Cerca nei titoli, nei tag, nelle note e nel testo trascritto;
+  filtra per i tag che hai assegnato e per data.
+- Se conservi l’audio, clicca un orario nella trascrizione per riascoltare
+  quel passaggio.
 - Esporta le trascrizioni in Markdown.
-- Scegli cosa conservare (solo testo, testo e audio, testo e video) e per
-  quanto tempo.
+- Scegli cosa conservare: solo testo, testo e audio oppure testo e video
+  (su Windows).
+- In **Impostazioni → Archivio** scegli quando eliminare automaticamente i
+  dati: dopo 1, 3, 6, 12 o 24 mesi, oppure **Mai** per conservarli finché non
+  li elimini tu.
 
 ### Assistente AI
 
 - Collega **Claude** tramite Claude Code o **OpenAI** tramite Codex, usando
-  il tuo account. Puoi anche usare
-  **Ollama** sul computer o su un tuo server, oppure un endpoint compatibile
-  con l’API di OpenAI.
+  il tuo account. Puoi anche usare **Ollama** sul computer o su un tuo server,
+  oppure un endpoint compatibile con l’API di OpenAI.
 - Scegli le fonti della chat: trascrizione, note, file e cartelle. Con `@`
   richiami una fonte o un’altra call per confrontare più riunioni.
 - Crea documenti Word, fogli Excel, presentazioni PowerPoint, PDF, quiz e
-  slideshow. I file prodotti restano associati alla call. Puoi fornire un
-  template `.pptx` come riferimento per le presentazioni.
+  slideshow. I file prodotti restano associati alla call.
+- Aggiungi file e cartelle per dare contesto all’assistente o guidare stile
+  e formato dei risultati: per esempio un brief di progetto, un documento
+  di esempio, linee guida editoriali o un template `.pptx`.
 - Con Claude e Codex puoi usare i connettori MCP configurati
   sul tuo account, per esempio Drive o un CRM.
 - Autorizza dalla chat operazioni come l’esecuzione di comandi di shell.

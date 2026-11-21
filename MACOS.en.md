@@ -5,6 +5,15 @@
 PARLO runs on macOS 13 or later, on Apple Silicon or Intel. Build the Mac
 version from source; an official installer is not yet available.
 
+## Audio and screen recording
+
+You can record the microphone and system audio. The microphone follows the
+default macOS input, including changes during a call. System audio is
+captured through ScreenCaptureKit, without selecting an output in PARLO.
+
+You can add screenshots and annotations. Video recording of the screen or a
+selected area is currently available only on Windows.
+
 ## Build
 
 The [Mac build guide](DEVELOPMENT.md#macos-apple-silicon-or-intel) contains the

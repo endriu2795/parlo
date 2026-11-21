@@ -15,26 +15,44 @@ team. For installation, see the [README](README.en.md).
 3. During the call you can write notes, capture an area of the screen, and
    draw annotations on top of other windows. Screenshots are added to the
    transcript.
-4. Click **Stop recording**. When processing finishes, the final transcript
-   replaces the preview.
+4. Click **Stop recording**. PARLO processes the audio and saves the
+   transcript in the archive.
+
+### Audio devices on Windows and Mac
+
+On Windows, choose a microphone and audio output in PARLO or use the system
+defaults. With the defaults selected, recording follows changes in Windows
+audio settings, for example when switching to a headset. If you select a
+specific device, PARLO keeps using that device.
+
+On Mac, the microphone follows the default macOS input, including changes
+during a call. System audio is captured through ScreenCaptureKit, without
+selecting an output in PARLO.
+
+### Recording screen video
 
 On Windows you can also record the screen, or part of it, with the
 annotations: in **Settings → Archive**, choose **Text and video**. Video takes
-more disk space and resources.
+more disk space and resources. This feature is not yet available in the Mac
+version.
 
 ## Transcription
 
-**Settings → Recording → Where to transcribe** offers three options.
+**Settings → Recording → Where to process audio** offers three options.
 
 - **On this computer.** Whisper processes audio on your computer and works
   offline after the model download. Choose **Fast**, **Balanced**, or
-  **Highest accuracy**. PARLO picks CPU or GPU based on performance and shows
-  a preview during the call.
+  **Highest accuracy**. PARLO picks CPU or GPU based on performance. You can
+  enable **Show text while recording** to read a preview during the call.
 - **Online with Groq.** Enter your key from
   [console.groq.com](https://console.groq.com). If the
   connection drops, the app retries only the affected part.
-- **Custom endpoint.** Any server compatible with OpenAI's transcription API
-  (`audio/transcriptions` with a `verbose_json` response).
+- **Custom endpoint.** Connect a service other than Groq, including a Whisper
+  server on your computer or network. Install or prepare the server
+  separately; it must accept `POST audio/transcriptions` requests with
+  multipart WAV audio and return `verbose_json` with timestamps. Enter the
+  base URL, the exact ID of a model available on the server, and an API key if
+  required. **Test endpoint** sends a short audio sample to check the setup.
 
 In **Call language** you can keep automatic detection or set a fixed language.
 
@@ -61,14 +79,24 @@ closed, messages are fetched when it reopens, within Telegram's 24-hour limit.
 
 ## Finding and replaying calls
 
-Archive search covers titles, tags, notes, and transcribed text. You can
-narrow results by date and tag. In an open call you can search for a passage,
-play back the audio, change the playback speed, and click a timestamp to jump
-to that point. **Export** saves the transcript as Markdown.
+Assign tags manually: open a call, click **Add tag**, type a label, and press
+Enter. Use them for clients, projects, or topics.
+
+Archive search covers titles, tags, notes, and transcribed text. Narrow the
+results by date and by the tags you assigned. In an open call, search for a
+passage, play back saved audio, change the playback speed, and click a
+timestamp to jump to that point. **Export** saves the transcript as Markdown.
+
+### Data retention
 
 In **Settings → Archive**, choose what to keep (**Text only**,
-**Text and audio**, **Text and video**) and for how long. Audio and video
-follow the same expiry as the recording.
+**Text and audio**, or **Text and video** on Windows). This applies to new
+recordings; with **Text only**, audio is deleted when the transcript is ready.
+
+Under **Automatically delete after**, choose 1, 3, 6, 12, or 24 months. Expiry
+applies to the recording with its transcript, chat, notes, screenshots, and
+saved audio or video. Choose **Never** to keep data until you delete it.
+**Delete expired recordings now** runs cleanup using the selected expiry.
 
 ## Using the assistant
 
@@ -100,6 +128,10 @@ Open a call's chat. In **Files and sources**, choose which materials to use:
 transcript, notes, linked files and folders. Type `@` to mention one in your
 request. Linked files stay in their original locations.
 
+Add context such as a project brief or documentation, and references for the
+style and format of the output, such as a sample document, editorial
+guidelines, or a presentation template.
+
 You can also use `@` to mention **other calls in the archive**: type part of the
 title or a spoken word and pick the call under **Other calls in the archive**.
 Its transcript and notes become available to the assistant alongside the
@@ -126,14 +158,23 @@ When the assistant asks to run Bash or PowerShell commands, you can approve
 them in the chat once or remember the choice. You can revoke permissions in
 the settings.
 
-### Slides with your own template
+### Using files for context or as references
 
-1. In the chat, open **Files and sources → Add shared files** and select your
-   `.pptx` template. It stays available in all chats.
-2. In the call, make sure it is checked and mention it with `@` in your request.
+1. In **Files and sources**, use **Add files** or **Add folder** to link
+   materials to the call. Use **Add shared files** or **Add shared folder**
+   to make them available in all your chats.
+2. Select the sources to use and mention them with `@`, explaining how they
+   should guide the response.
+
+For example, use a `.pptx` template as a reference for a presentation:
 
 > Create a presentation from the transcript. Use @Template.pptx as the style
 > reference and include decisions and next steps.
+
+Or combine background information and writing instructions:
+
+> Summarize the call. Use @Brief.pdf for context and follow the tone and
+> structure of @Example.docx.
 
 ### MCP connectors
 

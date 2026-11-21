@@ -6,6 +6,16 @@ PARLO funziona su macOS 13 o successivo, con Apple Silicon o Intel. La
 versione Mac si compila dai sorgenti; l’installer ufficiale non è ancora
 disponibile.
 
+## Registrazione audio e schermo
+
+Puoi registrare il microfono e l’audio del computer. Il microfono segue il
+dispositivo di ingresso predefinito di macOS, anche se lo cambi durante la
+call. L’audio del computer viene acquisito tramite ScreenCaptureKit, senza
+selezionare un’uscita audio da PARLO.
+
+Puoi aggiungere screenshot e annotazioni. La registrazione video dello
+schermo o di un’area è attualmente disponibile solo su Windows.
+
 ## Compilare
 
 La [guida alla compilazione per Mac](DEVELOPMENT.md#macos-apple-silicon-or-intel)

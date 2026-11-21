@@ -16,26 +16,46 @@ condividerla con il team. Per l’installazione vedi il [README](README.md).
 3. Durante la call puoi scrivere note, catturare un’area dello schermo e
    disegnare annotazioni sopra le altre finestre. Gli screenshot entrano nella
    trascrizione.
-4. Premi **Termina registrazione**. Al termine dell’elaborazione, la
-   trascrizione definitiva sostituisce l’anteprima.
+4. Premi **Termina registrazione**. PARLO elabora l’audio e salva la
+   trascrizione nell’archivio.
+
+### Dispositivi audio su Windows e Mac
+
+Su Windows puoi scegliere microfono e uscita audio da PARLO oppure usare i
+dispositivi predefiniti. Se usi quelli predefiniti, la registrazione segue i
+cambi nelle impostazioni audio di Windows, per esempio quando passi alle
+cuffie. Se scegli un dispositivo specifico, resta selezionato quello.
+
+Su Mac il microfono segue il dispositivo di ingresso predefinito di macOS,
+anche quando lo cambi durante la call. L’audio del computer viene acquisito
+tramite ScreenCaptureKit, senza scegliere un’uscita da PARLO.
+
+### Registrare il video dello schermo
 
 Su Windows puoi registrare anche il video dello schermo, o di una sua area,
 con le annotazioni: in **Impostazioni → Archivio** scegli **Testo e video**.
-Il video richiede più spazio e risorse.
+Il video richiede più spazio e risorse. Questa funzione non è ancora
+disponibile nella versione Mac.
 
 ## Trascrivere
 
-In **Impostazioni → Registrazione → Dove trascrivere** hai tre opzioni.
+In **Impostazioni → Registrazione → Dove elaborare l’audio** hai tre opzioni.
 
 - **Su questo computer.** Whisper elabora l’audio sul computer e funziona
   offline dopo il download del modello. Scegli tra **Veloce**, **Bilanciata**
   e **Massima precisione**. PARLO sceglie tra processore e scheda grafica in
-  base alle prestazioni e mostra un’anteprima durante la call.
+  base alle prestazioni. Puoi attivare **Mostra il testo mentre registri**
+  per leggere un’anteprima durante la call.
 - **Online con Groq.** Inserisci la tua chiave da
   [console.groq.com](https://console.groq.com). Se la
   connessione si interrompe, l’app ritenta solo la parte interessata.
-- **Endpoint personalizzato.** Qualsiasi server compatibile con l’API di
-  trascrizione di OpenAI (`audio/transcriptions` con risposta `verbose_json`).
+- **Endpoint personalizzato.** Collega un servizio diverso da Groq, anche un
+  server Whisper sul tuo computer o in rete. Il server va installato o
+  predisposto separatamente e deve accettare richieste
+  `POST audio/transcriptions`, con audio WAV multipart e risposta `verbose_json`
+  con timestamp. Inserisci l’URL base, l’ID esatto del modello disponibile
+  sul server e la chiave API, se richiesta. **Prova endpoint** invia un breve
+  audio di test per verificare la configurazione.
 
 In **Lingua della call** puoi lasciare il rilevamento automatico o scegliere una
 lingua.
@@ -63,15 +83,27 @@ vengono recuperati alla riapertura, entro le 24 ore previste da Telegram.
 
 ## Ritrovare e riascoltare
 
+Assegna i tag manualmente: apri una call, premi **Aggiungi tag**, scrivi
+un’etichetta e premi Invio. Puoi usarli per cliente, progetto o argomento.
+
 La ricerca dell’archivio copre titoli, tag, note e testo trascritto. Puoi
-restringere i risultati per data e per tag. Nella call aperta puoi cercare un
-passaggio, riascoltare l’audio, cambiare la velocità di riproduzione e cliccare
-un orario per saltare al punto corrispondente. **Esporta** salva la
-trascrizione in Markdown.
+restringere i risultati per data e per i tag che hai assegnato. Nella call
+aperta puoi cercare un passaggio, riascoltare l’audio conservato, cambiare la
+velocità di riproduzione e cliccare un orario per saltare al punto
+corrispondente. **Esporta** salva la trascrizione in Markdown.
+
+### Conservazione dei dati
 
 In **Impostazioni → Archivio** scegli cosa conservare (**Solo il testo**,
-**Testo e audio**, **Testo e video**) e per quanto tempo. Audio e video seguono
-la stessa scadenza della registrazione.
+**Testo e audio**, oppure **Testo e video** su Windows). La scelta vale per le
+nuove registrazioni; con **Solo il testo**, l’audio viene eliminato quando
+la trascrizione è pronta.
+
+In **Elimina automaticamente dopo** scegli 1, 3, 6, 12 o 24 mesi. La scadenza
+si applica alla registrazione con trascrizione, chat, note, screenshot e
+audio o video conservati. Scegli **Mai** per conservare i dati finché non li
+elimini tu. Con **Elimina ora le registrazioni scadute** puoi avviare subito
+la pulizia prevista dalla scadenza impostata.
 
 ## Usare l’assistente
 
@@ -104,6 +136,10 @@ Apri la chat di una call. In **File e fonti** scegli quali materiali usare:
 trascrizione, note, file e cartelle collegati. Digita `@` per citarne uno
 nella richiesta. I file collegati restano nei loro percorsi originali.
 
+Puoi aggiungere materiali di contesto, come un brief o la documentazione di
+un progetto, e riferimenti per lo stile e il formato dei risultati, come un
+documento di esempio, linee guida editoriali o un template di presentazione.
+
 Con `@` puoi citare anche **altre call dell’archivio**: scrivi parte del titolo
 o una parola pronunciata e scegli la call in **Altre call dell’archivio**. La
 sua trascrizione e le note diventano disponibili all’assistente insieme alla
@@ -130,14 +166,24 @@ Quando l’assistente chiede di eseguire comandi Bash o PowerShell, puoi
 autorizzarli dalla chat una volta o ricordare la scelta. Puoi revocare le
 autorizzazioni dalle impostazioni.
 
-### Slide con il tuo template
+### Usare file come contesto o riferimento
 
-1. In chat apri **File e fonti → Aggiungi file condivisi** e scegli il tuo
-   template `.pptx`. Resta disponibile in tutte le chat.
-2. Nella call, verifica che sia spuntato e citalo con `@` nella richiesta.
+1. In **File e fonti**, usa **Aggiungi file** o **Aggiungi cartella** per
+   collegare materiali alla call. Con **Aggiungi file condivisi** o
+   **Aggiungi cartella condivisa** li rendi disponibili in tutte le tue chat.
+2. Seleziona le fonti da usare e richiamale con `@`, indicando come devono
+   guidare la risposta.
+
+Per esempio, puoi usare un template `.pptx` come riferimento per una
+presentazione:
 
 > Crea una presentazione dalla trascrizione. Usa @Template.pptx come
 > riferimento per lo stile e includi decisioni e prossimi passi.
+
+Oppure unire contesto e indicazioni di scrittura:
+
+> Prepara un riepilogo della call. Usa @Brief.pdf per il contesto e segui
+> tono e struttura di @Esempio.docx.
 
 ### Connettori MCP
 

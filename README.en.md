@@ -27,19 +27,24 @@ The app is available for Windows and macOS, in Italian and English.
 
 - Record the microphone, system audio, or both. Start and stop with a
   keyboard shortcut, even while using another app.
-- Read a transcript preview during the call and the final text when it ends.
-- Add notes, screenshots, and on-screen annotations. On Windows, you can also
-  record the screen or a selected area.
-- On Windows, audio devices can follow system changes, for example when you
-  plug in headphones.
+- Add notes, screenshots, and on-screen annotations.
+
+Microphone and system audio recording are available on Windows and Mac. On
+Windows, choose devices in PARLO or follow the system defaults. On Mac, the
+microphone follows the system's default input, including changes during a
+call. On Windows, you can also record video of the screen or a selected area. See
+[PARLO on Mac](MACOS.en.md).
 
 ### Transcription
 
 - Run Whisper on your computer, with three speed and accuracy levels. After
   downloading the model, you can transcribe offline; PARLO picks CPU or GPU
   based on performance.
-- Alternatively, use Groq with your API key or a server compatible with
-  OpenAI's transcription API.
+- For online transcription, use **Groq** with your API key.
+- With **Custom endpoint**, connect another transcription service, including
+  a Whisper server on your computer or network. Set up the server separately;
+  it must support OpenAI's transcription API. In PARLO, enter its address,
+  model ID, and API key if required.
 - Add names, acronyms, and products to the dictionary to help recognition.
 - Import audio and video files, or receive voice messages and files from a
   personal Telegram bot.
@@ -48,22 +53,29 @@ The app is available for Windows and macOS, in Italian and English.
 
 ### Archive
 
-- Search titles, tags, notes, and transcripts. Filter by tag and date.
-- Click a timestamp in the transcript to play back that passage.
+- Add tags to calls manually, for example by client, project, or topic.
+  Search titles, tags, notes, and transcripts; filter by the tags you assigned
+  and by date.
+- If you keep the audio, click a timestamp in the transcript to play back
+  that passage.
 - Export transcripts as Markdown.
-- Choose what to keep (text only, text and audio, text and video) and for how
-  long.
+- Choose what to keep: text only, text and audio, or text and video (on
+  Windows).
+- In **Settings → Archive**, choose when to delete data automatically: after
+  1, 3, 6, 12, or 24 months, or **Never** to keep it until you delete it.
 
 ### AI assistant
 
 - Connect **Claude** via Claude Code or **OpenAI** via Codex using your
-  account. You can also use **Ollama** on your computer
-  or your own server, or an OpenAI-compatible endpoint.
+  account. You can also use **Ollama** on your computer or your own server,
+  or an OpenAI-compatible endpoint.
 - Choose the chat's sources: transcript, notes, files, and folders. Type `@`
   to mention a source or another call and compare several meetings.
 - Create Word documents, Excel sheets, PowerPoint decks, PDFs, quizzes, and
-  slideshows. Generated files stay attached to the call. You can provide a
-  `.pptx` template as a reference for presentations.
+  slideshows. Generated files stay attached to the call.
+- Add files and folders to give the assistant context or guide the style and
+  format of its output: for example a project brief, a sample document,
+  editorial guidelines, or a `.pptx` template.
 - With Claude and Codex, use the MCP connectors configured on
   your account, for example Drive or a CRM.
 - Approve operations such as running shell commands from the chat.
