@@ -1,18 +1,21 @@
 # Local Piper
 
-The `piper-tts` 1.8.0 engine is distributed under GPL-3.0-or-later and
-includes eSpeak NG. The packages keep their own licenses in the private runtime.
+PARLO uses `piper-tts` 1.8.0 for local speech synthesis. The engine is licensed
+under GPL-3.0-or-later and includes eSpeak NG. License files for the packages
+are kept in the app's runtime.
 
-- Engine and code: https://github.com/OHF-Voice/piper1-gpl
-- eSpeak NG: https://github.com/espeak-ng/espeak-ng
+- [Piper engine and source code](https://github.com/OHF-Voice/piper1-gpl)
+- [eSpeak NG source code](https://github.com/espeak-ng/espeak-ng)
 
-The two quality levels of the Serena voice were published by bacca87/committa,
-trained from scratch on the `committa/serena-synthetic-it-27h` dataset, which
-is declared CC-BY-4.0 in the respective model cards:
+## Serena voice
 
-- https://huggingface.co/rhasspy/piper-voices/blob/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/it/it_IT/serena/medium/MODEL_CARD
-- https://huggingface.co/rhasspy/piper-voices/blob/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/it/it_IT/serena/high/MODEL_CARD
-- https://creativecommons.org/licenses/by/4.0/
+The medium- and high-quality Serena models were published by bacca87/committa
+and trained from scratch on `committa/serena-synthetic-it-27h`. Their model
+cards declare the dataset as CC-BY-4.0:
 
-The models are downloaded only on request, verified with SHA-256, and stored
-with their attribution in the local voices folder.
+- [Medium model card](https://huggingface.co/rhasspy/piper-voices/blob/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/it/it_IT/serena/medium/MODEL_CARD)
+- [High model card](https://huggingface.co/rhasspy/piper-voices/blob/5041a7a49ae5b3a0f30e6837769eb03fdbb231bd/it/it_IT/serena/high/MODEL_CARD)
+- [CC-BY-4.0 license](https://creativecommons.org/licenses/by/4.0/)
+
+PARLO downloads the models on request, verifies their SHA-256 hashes, and
+stores them with their attribution in the local voices folder.

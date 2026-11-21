@@ -2,21 +2,21 @@
 
 [Italiano](USO.md)
 
-This guide follows the order of the app's settings. To install PARLO, see the
-[README](README.en.md).
+Learn how to record a call, work with the transcript, and share it with your
+team. For installation, see the [README](README.en.md).
 
 ## Recording a call
 
 1. In **Settings → Recording**, choose the microphone, system audio, or both.
    To record the people you are talking to, pick the same audio output used
    by Teams, Zoom, or your browser.
-2. Click **New recording** or use the shortcut set in **Settings → Shortcuts**.
+2. Click **Start recording** or use the shortcut set in **Settings → Shortcuts**.
    The shortcut also works while PARLO is in the background.
 3. During the call you can write notes, capture an area of the screen, and
    draw annotations on top of other windows. Screenshots are added to the
    transcript.
-4. Click **Stop**. The final transcript replaces the preview and the call
-   appears in the archive.
+4. Click **Stop recording**. When processing finishes, the final transcript
+   replaces the preview.
 
 On Windows you can also record the screen, or part of it, with the
 annotations: in **Settings → Archive**, choose **Text and video**. Video takes
@@ -26,22 +26,21 @@ more disk space and resources.
 
 **Settings → Recording → Where to transcribe** offers three options.
 
-- **On this computer.** Runs Whisper locally: free, private, and offline after
-  the first download. Choose **Fast**, **Balanced**, or **Highest accuracy**
-  depending on your computer. The app picks CPU or GPU automatically; with an
-  NVIDIA GPU, transcription is much faster. A provisional preview is shown
-  during the call.
-- **Online with Groq.** Enter your key from console.groq.com. If the
+- **On this computer.** Whisper processes audio on your computer and works
+  offline after the model download. Choose **Fast**, **Balanced**, or
+  **Highest accuracy**. PARLO picks CPU or GPU based on performance and shows
+  a preview during the call.
+- **Online with Groq.** Enter your key from
+  [console.groq.com](https://console.groq.com). If the
   connection drops, the app retries only the affected part.
 - **Custom endpoint.** Any server compatible with OpenAI's transcription API
   (`audio/transcriptions` with a `verbose_json` response).
 
 In **Call language** you can keep automatic detection or set a fixed language.
 
-In **Settings → Dictionary**, add names of people, companies, products, or
-acronyms you use often: the transcript will spell them correctly more often.
-The dictionary does not replace words automatically; add only terms that come
-up frequently.
+In **Settings → Dictionary**, add recurring names of people, companies,
+products, or acronyms. The dictionary helps recognize these terms; it does
+not replace words in the transcript automatically.
 
 If processing fails, the audio is kept. Open the call and click
 **Try again**, optionally after switching service.
@@ -75,20 +74,22 @@ follow the same expiry as the recording.
 
 Choose the provider in **Settings → Assistant**.
 
-| Provider | What you need | Notes |
-|---|---|---|
-| **Claude** | Claude account | Uses Claude Code. If it is not installed, PARLO downloads it. |
-| **Codex** | OpenAI account | Uses the Codex CLI. |
-| **Antigravity** | Google account | Requires a sign-in dedicated to PARLO. |
-| **Ollama** | Ollama on your computer or your own server | No cloud account. Requires a model that supports tools. |
-| **Custom endpoint** | Base URL, model ID, optional key | Any server compatible with OpenAI's chat API. |
+- **Claude:** sign in with your Claude account. PARLO uses Claude Code and
+  downloads it if it is not installed.
+- **Codex:** sign in with your OpenAI account. PARLO uses the Codex CLI.
+- **Ollama:** choose a model on your computer or your own server. Creating
+  documents and running operations requires a model that supports tools.
+- **Custom endpoint:** enter the base URL, model ID, and API key if required
+  for a server compatible with OpenAI's chat API.
 
-With Ollama the chat stays local: if the server does not respond, the request
-stops instead of falling back to the cloud. Web search is off by default; if
-you enable **Search and open web pages**, searches go through DuckDuckGo and,
-before a page is opened, only its domain is sent to Anthropic for a security
-check. You can adjust the conversation memory; for long calls, a context of at
-least 32k tokens is recommended if the model and your memory allow it.
+With Ollama, requests go to the server you configured, on the same computer
+or another machine. If the server does not respond, PARLO stops the request.
+You can adjust the conversation memory; for long calls, you can use a context
+of at least 32k tokens if the model and your memory allow it.
+
+Web search is off by default for Ollama. If you enable **Search and open web
+pages**, searches go through DuckDuckGo and each page's domain is sent to
+Anthropic for a security check before the page is opened.
 
 In **Project instructions** you can set preferences for the language, tone,
 and format of answers. They apply to all calls.
@@ -101,14 +102,14 @@ request. Linked files stay in their original locations.
 
 You can also use `@` to mention **other calls in the archive**: type part of the
 title or a spoken word and pick the call under **Other calls in the archive**.
-Its transcript and notes are added to the context next to the open call, and
-stay available for follow-up questions. For example:
+Its transcript and notes become available to the assistant alongside the
+open call, including for follow-up questions. For example:
 
 > Compare the client's requests with @«Client kickoff · 12/11/2026» and tell
 > me what changed.
 
-You can mention up to 8 calls per chat. With Ollama, keep an eye on the
-context bar: more calls take more space.
+You can mention up to 8 calls per chat. With Ollama, the context bar shows
+how much conversation memory the sources and messages use.
 
 If you uncheck the transcript, it is excluded from subsequent requests, but the
 chat history may still contain passages already discussed. To start fresh,
@@ -121,9 +122,9 @@ sheets, PowerPoint decks, PDFs, quizzes, or slideshows. Python and the
 required libraries are bundled with the installer: Office is not needed.
 Generated files appear in the call.
 
-Sensitive operations, such as Bash or PowerShell commands, ask for
-confirmation in the chat. You can allow them once or remember the choice, and
-revoke it later in the settings.
+When the assistant asks to run Bash or PowerShell commands, you can approve
+them in the chat once or remember the choice. You can revoke permissions in
+the settings.
 
 ### Slides with your own template
 
@@ -136,7 +137,7 @@ revoke it later in the settings.
 
 ### MCP connectors
 
-With Claude, Codex, and Antigravity, the chat can use the MCP connectors
+With Claude and Codex, the chat can use the MCP connectors
 configured on your account, for example Drive or a CRM. Choose which ones to
 enable from the **Connectors** button in the chat. Connectors receive only the
 data for operations you authorize.
@@ -154,24 +155,63 @@ In **Settings → Voice**, choose the speech engine.
 Local voices require a model download, then work offline. Audio formats and
 word-level timings depend on the engine.
 
-## Sharing
+## Sharing with your team
 
-In **Settings → Sharing** you can:
+### Shared folder on Drive, OneDrive, or a local network
 
-- set a **Shared folder**, for example on Google Drive or a network drive.
-  Transcripts you publish appear to colleagues using the same folder, and the
-  **Shared** tab shows theirs, searchable by title or author. If you enable
-  it, your shared copies are deleted when the call expires;
-- send the transcript to a **Slack** or **Teams** channel through a webhook.
-  For Teams, use a Workflows flow configured for the channel.
+1. Create a team folder and give colleagues permission to read and publish
+   files. With Google Drive or OneDrive, use the desktop client to make the
+   folder accessible from File Explorer or Finder.
+2. In **Settings → Sharing**, enter your display name and choose the folder.
+   Each colleague selects the same shared folder on their own computer; the
+   local paths can differ.
+3. Enable **Show other people’s transcripts in the sidebar** to browse the team's
+   publications in the **Shared** tab.
+4. To publish, open a call and select the folder from the **Share** menu.
+   Enable **Publish automatically** to publish each new completed transcript.
 
-## Data and privacy
+PARLO writes a Markdown file for each published transcript. Drive or OneDrive
+syncs it with colleagues; files on a network folder are accessible directly.
+In the **Shared** tab, search by title or author, read the text, and open a
+chat with the assistant.
 
-- The archive is stored on your computer, **unencrypted**.
-- Local transcription, Ollama, and local voices do not send data out.
-- Online services receive only the data they need: audio for transcription,
-  messages and sources for chat, text for speech.
-- API keys, tokens, and webhooks are stored in the system keychain.
-- Files linked as sources are not copied: they stay where they are.
+Sharing includes the transcript text. Audio, video, attachments, and chats
+stay in each person's archive. Markdown files can also be read without PARLO.
+
+The **Delete my shared copies when the call expires** option applies archive
+expiry to your publications, including those already in the folder.
+Deletions are synced with the team.
+
+### Slack and Teams channels
+
+In **Settings → Sharing**, enable the channel and save its webhook. For
+Teams, use the webhook of a Workflows flow configured for the channel.
+Publish from the call's **Share** menu or enable **Publish automatically**
+for that destination.
+
+## Data and services
+
+### Local archive
+
+Recordings, transcripts, and chats are stored on your computer. PARLO does
+not encrypt archive files itself; disk protection is configured through your
+operating system's security settings. In **Settings → Archive**, choose what
+to keep and for how long.
+
+Linked source files stay in their original locations. API keys, tokens, and
+webhooks are stored in the system keychain.
+
+### Processing and sharing
+
+Whisper, Ollama on the same computer, and local voices can process content
+offline after setup and model downloads. If you configure Ollama on a server,
+requests are sent to that server.
+
+Online services receive the content of the operation: audio for
+transcription, chat messages and sources for the assistant, text for speech.
+Web search and connectors use the services described in their sections.
+Voice messages and files sent to the bot go through Telegram; published
+transcripts follow the sharing destinations and permissions you choose.
+Each external service has its own terms and pricing.
 
 [Building and contributing](DEVELOPMENT.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)

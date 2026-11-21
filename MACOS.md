@@ -2,38 +2,43 @@
 
 [English](MACOS.en.md)
 
-Serve macOS 13 o successivo, su Apple Silicon o Intel. PARLO registra il
-microfono tramite i dispositivi audio del Mac e l’audio del computer tramite
-ScreenCaptureKit. Per ora non è disponibile un installer ufficiale: l’app si
-compila dai sorgenti.
+PARLO funziona su macOS 13 o successivo, con Apple Silicon o Intel. La
+versione Mac si compila dai sorgenti; l’installer ufficiale non è ancora
+disponibile.
 
 ## Compilare
 
-Segui i passaggi nella [guida per compilare su Mac](DEVELOPMENT.md#macos-apple-silicon-or-intel)
-(in inglese). La guida spiega come aprire la cartella nel Terminale e trovare l’app nel Finder.
+La [guida alla compilazione per Mac](DEVELOPMENT.md#macos-apple-silicon-or-intel)
+(in inglese) contiene i comandi per preparare le dipendenze, compilare e
+aprire **PARLO.app**.
 
 ## Primo avvio
 
-1. Apri **PARLO.app** e prepara il modello in **Impostazioni → Registrazione**.
+1. Apri **PARLO.app**. Se usi la trascrizione locale, prepara il modello in
+   **Impostazioni → Registrazione**.
 2. Alla prima registrazione concedi **Microfono** e **Registrazione schermo**
-   in **Privacy e sicurezza**. Il secondo permesso serve anche per acquisire
-   il solo audio del computer.
+   in **Privacy e sicurezza**. PARLO acquisisce l’audio del computer tramite
+   ScreenCaptureKit, che richiede il permesso di registrazione schermo anche
+   quando registri solo l’audio.
 3. Riapri PARLO se macOS lo richiede. Se i permessi restano associati a una
    vecchia build, usa **Ripristina permessi e riavvia** in
    **Impostazioni → Registrazione**.
 
 ## Kit di prova
 
-Se hai ricevuto lo ZIP di prova, estrailo e apri **Prepara PARLO.command**.
-Se Finder blocca l’avvio, apri **PRIMO AVVIO MAC.html** e segui le istruzioni
-del kit. Se la preparazione fallisce dopo l’avvio, controlla
-`Diagnostica-PARLO-Mac.zip`. Per riaprire l’app usa **Avvia PARLO.command**.
+Se usi il kit ZIP di prova:
+
+1. Estrai lo ZIP e apri **Prepara PARLO.command**.
+2. Se Finder blocca l’avvio, segui le istruzioni in **PRIMO AVVIO MAC.html**.
+3. Se la preparazione fallisce, consulta `Diagnostica-PARLO-Mac.zip`.
+
+Per gli avvii successivi usa **Avvia PARLO.command**.
 
 ## Stato del collaudo
 
-La versione Mac non è ancora stata collaudata a fondo su hardware fisico.
-Restano da verificare avvio, permessi, registrazione di microfono e audio del
-computer, cambio di dispositivo, trascrizione locale e firma dell’installer.
-Segnalazioni e contributi sono benvenuti. Per distribuire un DMG servono
-Developer ID e notarizzazione.
-[Firma macOS con Tauri](https://v2.tauri.app/distribute/sign/macos/)
+Il collaudo su Mac fisici è ancora da completare. Le verifiche previste
+coprono avvio, permessi, registrazione di microfono e audio del computer,
+cambio di dispositivo, trascrizione locale e firma dell’installer.
+
+Per il pacchetto ufficiale sono previsti Developer ID e notarizzazione.
+I passaggi sono nella [guida alla firma macOS di Tauri](https://v2.tauri.app/distribute/sign/macos/).

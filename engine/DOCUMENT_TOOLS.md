@@ -1,14 +1,17 @@
 # Strumenti per documenti e media
 
-Nel JSON `tools` trovi i percorsi di Python, FFmpeg e dell'helper, oltre alle
-versioni delle librerie incluse. Scegli gli strumenti in base alla richiesta.
+Il JSON `tools` contiene i percorsi di Python, FFmpeg e dell’helper, con le
+versioni delle librerie disponibili. Usa questi percorsi per eseguire gli
+strumenti nella cartella di lavoro.
 
-L'helper è facoltativo. Offre `extract`, `validate`, `render-pdf`, `slideshow`
-e `ffmpeg`. Per usarlo, esegui `tools.python` con `-I -X utf8`, seguito da
-`tools.helper` e dal comando. Consulta `--help` per i parametri.
-Su PowerShell avvia i percorsi tra virgolette con `&`. Tieni script e librerie
-aggiuntive nella cartella di lavoro.
+L’helper offre i comandi `extract`, `validate`, `render-pdf`, `slideshow` e
+`ffmpeg`. Per usarlo, esegui `tools.python` con `-I -X utf8`, seguito da
+`tools.helper` e dal comando. `--help` elenca i parametri. Puoi anche usare
+direttamente le librerie incluse.
 
-`python-pptx` non richiede Office per creare PPTX. MoviePy 2.x si importa da
-`moviepy`. Per il rendering dei file Office, il ricalcolo Excel, l'OCR e la
-generazione di riprese video AI servono strumenti dedicati.
+In PowerShell, anteponi `&` ai percorsi eseguibili tra virgolette. Salva
+script e librerie aggiuntive nella cartella di lavoro.
+
+`python-pptx` crea file PPTX senza Office. Con MoviePy 2.x importa da
+`moviepy`. Rendering dei file Office, ricalcolo Excel, OCR e generazione di
+riprese video AI richiedono strumenti dedicati.

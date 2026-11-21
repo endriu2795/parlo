@@ -2,22 +2,22 @@
 
 [English](USO.en.md)
 
-Questa guida segue l’ordine delle impostazioni dell’app. Per installare PARLO
-vedi il [README](README.md).
+Qui trovi come registrare una call, lavorare sulla trascrizione e
+condividerla con il team. Per l’installazione vedi il [README](README.md).
 
 ## Registrare una call
 
 1. In **Impostazioni → Registrazione** scegli microfono, audio del computer o
    entrambi. Per registrare chi ti parla, scegli la stessa uscita audio usata
    da Teams, Zoom o dal browser.
-2. Premi **Nuova registrazione** oppure usa la scorciatoia definita in
+2. Premi **Avvia registrazione** oppure usa la scorciatoia definita in
    **Impostazioni → Scorciatoie**. La scorciatoia funziona anche quando PARLO è
    in secondo piano.
 3. Durante la call puoi scrivere note, catturare un’area dello schermo e
    disegnare annotazioni sopra le altre finestre. Gli screenshot entrano nella
    trascrizione.
-4. Premi **Termina**. La trascrizione definitiva sostituisce l’anteprima e la
-   call compare nell’archivio.
+4. Premi **Termina registrazione**. Al termine dell’elaborazione, la
+   trascrizione definitiva sostituisce l’anteprima.
 
 Su Windows puoi registrare anche il video dello schermo, o di una sua area,
 con le annotazioni: in **Impostazioni → Archivio** scegli **Testo e video**.
@@ -27,23 +27,22 @@ Il video richiede più spazio e risorse.
 
 In **Impostazioni → Registrazione → Dove trascrivere** hai tre opzioni.
 
-- **Su questo computer.** Usa Whisper in locale: gratuito, privato, offline
-  dopo il primo download. Scegli tra **Veloce**, **Bilanciata** e **Massima
-  precisione** in base alla potenza del computer. L’app sceglie da sola tra
-  processore e scheda grafica; con una GPU NVIDIA la trascrizione è molto più
-  rapida. Durante la call mostra un’anteprima provvisoria.
-- **Online con Groq.** Inserisci la tua chiave da console.groq.com. Se la
+- **Su questo computer.** Whisper elabora l’audio sul computer e funziona
+  offline dopo il download del modello. Scegli tra **Veloce**, **Bilanciata**
+  e **Massima precisione**. PARLO sceglie tra processore e scheda grafica in
+  base alle prestazioni e mostra un’anteprima durante la call.
+- **Online con Groq.** Inserisci la tua chiave da
+  [console.groq.com](https://console.groq.com). Se la
   connessione si interrompe, l’app ritenta solo la parte interessata.
 - **Endpoint personalizzato.** Qualsiasi server compatibile con l’API di
   trascrizione di OpenAI (`audio/transcriptions` con risposta `verbose_json`).
 
-In **Lingua della call** puoi lasciare il rilevamento automatico o fissare una
+In **Lingua della call** puoi lasciare il rilevamento automatico o scegliere una
 lingua.
 
 In **Impostazioni → Dizionario** aggiungi nomi di persone, aziende, prodotti o
-sigle che ricorrono spesso: la trascrizione li scrive correttamente più spesso.
-Il dizionario non sostituisce parole in automatico; conviene inserire solo i
-termini davvero frequenti.
+sigle ricorrenti. Il dizionario aiuta il riconoscimento di questi termini;
+non esegue sostituzioni automatiche nel testo.
 
 Se l’elaborazione non va a buon fine, l’audio resta salvato. Apri la call e
 premi **Riprova**, eventualmente dopo aver cambiato servizio.
@@ -78,21 +77,23 @@ la stessa scadenza della registrazione.
 
 Scegli il fornitore in **Impostazioni → Assistente**.
 
-| Fornitore | Cosa serve | Note |
-|---|---|---|
-| **Claude** | Account Claude | Usa Claude Code. Se non è installato, PARLO lo scarica. |
-| **Codex** | Account OpenAI | Usa la CLI Codex. |
-| **Antigravity** | Account Google | Richiede un accesso dedicato a PARLO. |
-| **Ollama** | Ollama sul computer o su un tuo server | Nessun account cloud. Serve un modello che supporti gli strumenti. |
-| **Endpoint personalizzato** | URL base, ID del modello, chiave facoltativa | Qualsiasi server compatibile con l’API chat di OpenAI. |
+- **Claude:** accedi con il tuo account Claude. PARLO usa Claude Code e lo
+  scarica se non è installato.
+- **Codex:** accedi con il tuo account OpenAI. PARLO usa la CLI Codex.
+- **Ollama:** scegli un modello sul computer o su un tuo server. Per creare
+  documenti ed eseguire operazioni serve un modello che supporti gli strumenti.
+- **Endpoint personalizzato:** inserisci URL base, ID del modello e, se
+  richiesta, la chiave API di un server compatibile con l’API chat di OpenAI.
 
-Con Ollama la chat resta locale: se il server non risponde, la richiesta si
-ferma senza passare al cloud. La ricerca web è disattivata di default; se
-attivi **Ricerca e apertura di pagine web**, le ricerche passano da DuckDuckGo
-e, prima di aprire una pagina, il solo dominio viene inviato ad Anthropic per
-un controllo di sicurezza. Puoi regolare
-la memoria della conversazione; per call lunghe conviene un contesto di almeno
-32k token, se il modello e la memoria lo consentono.
+Con Ollama le richieste vanno al server che hai configurato: sullo stesso
+computer oppure su un’altra macchina. Se il server non risponde, PARLO ferma
+la richiesta. Puoi regolare la memoria della conversazione; per call lunghe
+puoi usare un contesto di almeno 32k token, se il modello e la memoria lo
+consentono.
+
+La ricerca web è disattivata di default per Ollama. Se attivi **Ricerca e
+apertura di pagine web**, le ricerche passano da DuckDuckGo e il dominio di
+ogni pagina da aprire viene inviato ad Anthropic per un controllo di sicurezza.
 
 In **Istruzioni di progetto** puoi indicare preferenze su lingua, tono e
 formato delle risposte. Valgono per tutte le call.
@@ -105,14 +106,14 @@ nella richiesta. I file collegati restano nei loro percorsi originali.
 
 Con `@` puoi citare anche **altre call dell’archivio**: scrivi parte del titolo
 o una parola pronunciata e scegli la call in **Altre call dell’archivio**. La
-sua trascrizione, con le note, entra nel contesto insieme a quella della call
-aperta, e resta disponibile nelle domande successive. Per esempio:
+sua trascrizione e le note diventano disponibili all’assistente insieme alla
+call aperta, anche nelle domande successive. Per esempio:
 
 > Confronta le richieste del cliente con @«Kickoff cliente · 12/11/2026» e
 > dimmi cosa è cambiato.
 
-Si possono citare fino a 8 call per chat. Con Ollama tieni d’occhio la barra
-del contesto: più call occupano più spazio.
+Puoi citare fino a 8 call per chat. Con Ollama la barra del contesto indica
+quanta memoria della conversazione è occupata dalle fonti e dai messaggi.
 
 Se togli la spunta alla trascrizione, viene esclusa dalle richieste
 successive, ma la cronologia della chat può ancora contenere passaggi già
@@ -125,9 +126,9 @@ fogli Excel, presentazioni PowerPoint, PDF, quiz o slideshow. Python e le
 librerie necessarie sono inclusi nell’installer: non serve Office. I file
 prodotti compaiono nella call.
 
-Le operazioni sensibili, come i comandi Bash o PowerShell, chiedono conferma
-nella chat. Puoi consentirle una volta o ricordare la scelta, e revocarla in
-seguito dalle impostazioni.
+Quando l’assistente chiede di eseguire comandi Bash o PowerShell, puoi
+autorizzarli dalla chat una volta o ricordare la scelta. Puoi revocare le
+autorizzazioni dalle impostazioni.
 
 ### Slide con il tuo template
 
@@ -140,7 +141,7 @@ seguito dalle impostazioni.
 
 ### Connettori MCP
 
-Con Claude, Codex e Antigravity la chat può usare i connettori MCP configurati
+Con Claude e Codex la chat può usare i connettori MCP configurati
 sul tuo account, per esempio Drive o un CRM. Scegli quali attivare dal
 pulsante **Connettori** nella chat. I connettori ricevono solo i dati delle
 operazioni che autorizzi.
@@ -159,25 +160,65 @@ Le voci locali richiedono il download del modello, poi funzionano offline.
 Formati audio e disponibilità dei tempi delle singole parole dipendono dal
 motore.
 
-## Condividere
+## Condividere con il team
 
-In **Impostazioni → Condivisione** puoi:
+### Cartella condivisa su Drive, OneDrive o rete locale
 
-- impostare una **cartella condivisa**, per esempio su Google Drive o su un
-  disco di rete. Le trascrizioni che pubblichi compaiono ai colleghi che usano
-  la stessa cartella, e la scheda **Condivise** mostra le loro, con ricerca per
-  titolo o autore. Se lo attivi, le tue copie condivise vengono eliminate alla
-  scadenza della call;
-- inviare la trascrizione a un canale **Slack** o **Teams** tramite webhook.
-  Per Teams usa un flusso Workflows configurato per il canale.
+1. Crea una cartella per il team e assegna ai colleghi i permessi per leggere
+   e pubblicare file. Con Google Drive o OneDrive, usa il client desktop per
+   rendere la cartella accessibile da Esplora file o dal Finder.
+2. In **Impostazioni → Condivisione**, inserisci il nome da mostrare e scegli
+   la cartella. Ogni collega deve selezionare sul proprio computer la stessa
+   cartella condivisa; il percorso locale può essere diverso.
+3. Attiva **Mostra le trascrizioni degli altri nella barra laterale** per
+   consultare le pubblicazioni del team nella scheda **Condivise**.
+4. Per pubblicare, apri una call e scegli la cartella dal menu **Condividi**.
+   Con **Pubblica automaticamente**, PARLO pubblica ogni nuova trascrizione
+   completata.
 
-## Dati e privacy
+PARLO scrive un file Markdown per ogni trascrizione pubblicata. Drive o
+OneDrive lo sincronizzano con i colleghi; su una cartella di rete il file è
+accessibile direttamente. Nella scheda **Condivise** puoi cercare per titolo
+o autore, leggere il testo e aprire una chat con l’assistente.
 
-- L’archivio è salvato sul computer, **senza cifratura**.
-- Trascrizione locale, Ollama e voce locale non inviano dati all’esterno.
-- I servizi online ricevono solo i dati necessari: audio per la trascrizione,
-  messaggi e fonti per la chat, testo per la voce.
-- Chiavi API, token e webhook sono conservati nel portachiavi del sistema.
-- I file collegati come fonti non vengono copiati: restano dove sono.
+Si condivide il testo della trascrizione. Audio, video, allegati e chat
+restano nell’archivio personale. I file Markdown possono essere letti anche
+senza PARLO.
+
+L’opzione **Elimina le mie copie condivise alla scadenza della call** applica
+la scadenza dell’archivio anche alle proprie pubblicazioni, comprese quelle
+già presenti nella cartella. L’eliminazione viene sincronizzata con il team.
+
+### Canali Slack e Teams
+
+In **Impostazioni → Condivisione**, attiva il canale e salva il suo webhook.
+Per Teams usa il webhook di un flusso Workflows configurato per il canale.
+Pubblica dal menu **Condividi** della call oppure attiva **Pubblica
+automaticamente** per quella destinazione.
+
+## Dati e servizi
+
+### Archivio locale
+
+Registrazioni, trascrizioni e chat sono conservate sul computer. PARLO non
+applica una cifratura propria all’archivio; la protezione del disco si
+configura nelle impostazioni di sicurezza del sistema operativo. In
+**Impostazioni → Archivio** scegli cosa conservare e per quanto tempo.
+
+I file collegati come fonti restano nei percorsi originali. Chiavi API,
+token e webhook sono conservati nel portachiavi del sistema.
+
+### Elaborazione e condivisione
+
+Whisper, Ollama sullo stesso computer e le voci locali possono elaborare i
+contenuti offline dopo la configurazione e il download dei modelli.
+Se configuri Ollama su un server, le richieste vengono inviate a quel server.
+
+I servizi online ricevono i contenuti dell’operazione: audio per la
+trascrizione, messaggi e fonti della chat per l’assistente, testo per la voce.
+Ricerca web e connettori usano i servizi descritti nelle rispettive sezioni.
+I vocali e i file inviati al bot passano da Telegram; le trascrizioni
+pubblicate seguono le destinazioni e i permessi di condivisione scelti.
+Ogni servizio esterno ha condizioni e costi propri.
 
 [Compilare e contribuire](DEVELOPMENT.md) (in inglese) · [Licenze di terze parti](THIRD_PARTY_NOTICES.md)

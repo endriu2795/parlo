@@ -1,51 +1,56 @@
 # Claude Code integration
 
-This document describes how PARLO uses Claude Code for the chat. It is meant
-for developers and for diagnosing sign-in problems.
+PARLO runs the native Claude Code CLI for assistant conversations. This guide
+describes the process, authentication, and checks for sign-in problems.
 
-The app is **React + Tauri**. The frontend calls Tauri commands; the **Rust
-backend starts the native `claude` CLI as a child process** and talks to it
-over stdin/stdout. The `@anthropic-ai/claude-agent-sdk` dependency (0.3.296)
-is used only by verification scripts: **the app flow does not use the SDK**.
+The React frontend calls Tauri commands. The Rust backend starts `claude` as
+a child process and exchanges messages over stdin and stdout. The
+`@anthropic-ai/claude-agent-sdk` dependency (0.3.296) is used by verification
+scripts only; the app uses the CLI directly.
 
 ## Installation and sign-in
 
-- If `claude` is not available, the app downloads the official Claude Code
-  **2.1.296** binary into its own `engine` folder, checks its size and SHA-256,
-  and stores the path. On Windows it uses `claude.exe`, not the npm `.cmd`
-  launcher.
-- To check the account it runs `claude auth status` and reads `loggedIn` from
-  the returned JSON.
-- To sign in it starts `claude auth login` and **keeps that process open**.
-  The CLI handles OAuth and prints the sign-in link; Rust reads it from stdout
-  and shows it in the app. The “Apri la pagina di accesso” (open sign-in page)
-  button opens that link in the system browser (`explorer.exe` on Windows,
-  `open` on macOS).
-- If Claude shows a code in the browser, the app writes it to the **stdin of
-  the same `claude auth login` process**, followed by a newline and a flush.
-  When the process exits, it runs `claude auth status` again to confirm the
-  sign-in.
+If `claude` is unavailable, PARLO downloads the official Claude Code 2.1.296
+binary into its `engine` folder, verifies its size and SHA-256, and stores
+the path. On Windows, it runs `claude.exe` rather than the npm `.cmd` launcher.
 
-The app **does not implement OAuth or store its own tokens**: it reuses the
-authentication saved by the CLI for the same system user. It does not set a
-separate `CLAUDE_CONFIG_DIR`. To reproduce the sign-in you therefore need the
-same binary, the same user environment, and a process with stdin/stdout
-attached while the browser is open.
+The sign-in flow uses the CLI's authentication commands:
+
+1. Run `claude auth status` and read `loggedIn` from the JSON response.
+2. Start `claude auth login` and keep the process open. The CLI handles OAuth
+   and prints the sign-in link. Rust reads it from stdout and displays it in
+   the app.
+3. The “Apri la pagina di accesso” (open sign-in page) button opens the link
+   in the system browser, using `explorer.exe` on Windows or `open` on macOS.
+4. If Claude displays a code in the browser, write it to stdin of the same
+   `claude auth login` process, followed by a newline and a flush.
+5. When the process exits, run `claude auth status` again to check the result.
+
+Claude Code stores and manages the authentication for the system user. PARLO
+reuses it and does not set a separate `CLAUDE_CONFIG_DIR` or store its own
+OAuth tokens.
 
 ## Chat
 
-The chat starts `claude -p` with `--input-format stream-json`,
+Each conversation starts `claude -p` with `--input-format stream-json`,
 `--output-format stream-json`, `--permission-prompt-tool stdio`, `--model` and
 `--system-prompt`. It sends JSON messages on stdin, receives replies and events
-on stdout, and handles tool permission requests in Rust. The code avoids
-`--bare`, which here would disable subscription-based access.
+on stdout, and handles tool permission requests in Rust. It omits `--bare`
+because that flag would disable subscription-based access in this flow.
 
-**If the browser sign-in does not start:** first check that
-`claude auth login` works with the same executable and user as the app. The
-current parser reads the link **only from stdout, line by line**, and accepts
-`claude.ai` or `console.anthropic.com` URLs: a link printed on stderr or in a
-different format will not appear in the UI.
+## Diagnosing sign-in problems
 
-Code references: `src-tauri/src/auth.rs` (sign-in), `src-tauri/src/main.rs`
-(Tauri commands and browser), `src-tauri/src/process.rs` (chat),
-`src-tauri/src/claude_runtime.rs` (binary).
+Check `claude auth login` with the same executable and user environment as
+the app. Keep stdin and stdout attached while the browser is open, so the
+process can receive the returned code.
+
+The link parser reads stdout line by line and accepts URLs on `claude.ai` or
+`console.anthropic.com`. Links printed on stderr or in another format do not
+appear in the app.
+
+## Code references
+
+- [auth.rs](src-tauri/src/auth.rs): sign-in process and returned code.
+- [main.rs](src-tauri/src/main.rs): Tauri commands and opening the browser.
+- [process.rs](src-tauri/src/process.rs): streaming chat and tool permissions.
+- [claude_runtime.rs](src-tauri/src/claude_runtime.rs): CLI installation.

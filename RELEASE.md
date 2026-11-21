@@ -1,27 +1,55 @@
 # Pubblicare una release ufficiale di PARLO
 
-Usa un clone di `https://github.com/endriu2795/parlo.git` e accedi con un
-account GitHub che può pubblicare release. Conserva la chiave di firma
-dell’updater in `.tools/updater/parlo.key` o imposta
-`TAURI_SIGNING_PRIVATE_KEY` sul computer di build. La configurazione nel
-repository contiene la chiave pubblica usata per verificare gli aggiornamenti.
+Questa guida riguarda le release del repository
+[endriu2795/parlo](https://github.com/endriu2795/parlo). Per distribuire un
+fork, segui la [guida agli installer](DEVELOPMENT.md#building-an-installer-for-your-fork).
 
-Per ogni versione, usa `npm run release:version -- VERSIONE`, poi committa
-e pubblica i sorgenti su `main`.
+## Preparare la versione
 
-- **Windows x64**. Installa i [prerequisiti](DEVELOPMENT.md#windows-x64), accedi
-  con `gh auth login` e prepara il
-  [runtime Vulkan](DEVELOPMENT.md#windows-x64). Dalla repo esegui `npm run release`.
-  Per ora le note della release indicano che l’installer è privo di firma
-  Authenticode e che Windows può mostrare un avviso o bloccarlo.
-- **macOS**. Per ora rimanda alla [build da sorgente](DEVELOPMENT.md#macos-apple-silicon-or-intel),
-  che si può fare senza un abbonamento Apple. Quando sarà pronto il pacchetto
-  ufficiale, usa il [Developer ID e la notarizzazione](https://developer.apple.com/developer-id/)
-  e compila dallo stesso commit della release Windows con
-  `bash scripts/pubblica-mac.command`.
+1. Lavora su un clone del repository ufficiale e accedi con un account GitHub
+   abilitato a pubblicare release.
+2. Conserva la chiave di firma dell’updater in `.tools/updater/parlo.key`
+   oppure imposta `TAURI_SIGNING_PRIVATE_KEY` sul computer di build. La
+   configurazione del repository contiene la chiave pubblica per verificare
+   gli aggiornamenti.
+3. Esegui `npm run release:version -- VERSIONE`, poi committa e pubblica i
+   sorgenti su `main`.
 
-Gli script pubblicano in [Releases](https://github.com/endriu2795/parlo/releases)
-e aggiornano il manifest per l’app. Il tag della release punta al commit
-compilato. Le piattaforme possono essere aggiunte alla stessa versione in
-momenti diversi. Prima di distribuire gli installer, verifica le
+## Windows x64
+
+Installa i [prerequisiti](DEVELOPMENT.md#windows-x64), accedi con
+`gh auth login` e prepara il [runtime Vulkan](DEVELOPMENT.md#windows-x64).
+Dalla cartella del progetto esegui:
+
+```sh
+npm run release
+```
+
+L’installer attuale non ha una firma Authenticode. Indicalo nelle note della
+release, insieme alla possibilità che Windows mostri un avviso o ne blocchi
+l’avvio secondo le impostazioni di sicurezza.
+
+## macOS
+
+Per ora le release rimandano alla
+[compilazione dai sorgenti](DEVELOPMENT.md#macos-apple-silicon-or-intel),
+che non richiede un abbonamento Apple.
+
+Quando il pacchetto ufficiale sarà pronto, configuralo con
+[Developer ID e notarizzazione](https://developer.apple.com/developer-id/)
+e compilalo dallo stesso commit della versione Windows:
+
+```sh
+bash scripts/pubblica-mac.command
+```
+
+## Pubblicazione e aggiornamenti
+
+Gli script pubblicano i pacchetti in
+[Releases](https://github.com/endriu2795/parlo/releases) e aggiornano il
+manifest usato dall’app. Il tag identifica il commit compilato; i pacchetti
+per le diverse piattaforme possono essere aggiunti alla stessa release in
+momenti diversi.
+
+Prima di distribuire, completa la raccolta delle
 [licenze dei componenti inclusi](THIRD_PARTY_NOTICES.md#when-distributing-an-installer).
