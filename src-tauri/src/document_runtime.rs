@@ -72,15 +72,12 @@ pub fn configure(command: &mut Command) {
 mod tests {
     use super::*;
     #[test]
-    fn tools_context_preserves_paths_with_spaces_and_explains_real_capabilities() {
+    fn tools_context_preserves_metadata_and_paths_with_spaces() {
         let tools = json!({"python": "C:\\test tools\\python.exe", "ffmpeg": "C:\\test tools\\ffmpeg.exe"});
         let context = instructions(&tools);
-        assert!(context.contains(&serde_json::to_string(&tools["python"]).unwrap()));
-        assert!(context.contains("MoviePy 2.x"));
-        assert!(context.contains("python-pptx"));
-        assert!(context.contains("Su PowerShell avvia"));
-        assert!(context.contains("non richiede Office"));
-        assert!(!context.contains("GUIDA.md"));
-        assert!(!context.contains("Leggi la guida"));
+        let payload = context.strip_prefix("\n<strumenti_documenti>\n").unwrap();
+        let metadata: Value = serde_json::from_str(payload.lines().next().unwrap()).unwrap();
+        assert_eq!(metadata, json!({"tools": tools}));
+        assert!(context.ends_with("\n</strumenti_documenti>\n"));
     }
 }
