@@ -53,13 +53,14 @@ The interface automatically follows your system language (English or Italian).
 
 Download the `.exe` installer from [GitHub Releases](https://github.com/endriu2795/parlo/releases). Python and all document/media tools are bundled.
 
-> **Note:** The installer is not Authenticode-signed yet, so Windows SmartScreen may show a warning on first run.
+> **Note:** The installer is not Authenticode-signed yet, so Windows SmartScreen or your antivirus may flag it on first run (**More info → Run anyway**), or you can [build from source](CONTRIBUTING.md#windows-x64).
 
 ### macOS 13+ (Apple Silicon or Intel)
 
-An official signed DMG is not available yet. You can build `PARLO.app` locally in two commands from the cloned repository:
+An official signed DMG is not available yet. You can build `PARLO.app` locally in three commands:
 
 ```sh
+git clone https://github.com/endriu2795/parlo.git && cd parlo
 bash scripts/mac-test.command --deps
 bash scripts/mac-test.command --build
 ```

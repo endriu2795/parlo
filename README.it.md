@@ -53,13 +53,14 @@ L’interfaccia segue automaticamente la lingua del sistema (italiano o inglese)
 
 Scarica l’installer `.exe` dalle [GitHub Releases](https://github.com/endriu2795/parlo/releases). Python e tutti gli strumenti per documenti e media sono già inclusi.
 
-> **Nota:** l’installer non ha ancora una firma Authenticode, quindi Windows SmartScreen può mostrare un avviso al primo avvio.
+> **Nota:** l’installer non ha ancora una firma Authenticode, quindi Windows SmartScreen o l’antivirus possono segnalarlo al primo avvio (**Ulteriori informazioni → Esegui comunque**); in alternativa puoi [compilarlo dai sorgenti](CONTRIBUTING.md#windows-x64).
 
 ### macOS 13+ (Apple Silicon o Intel)
 
-Non è ancora disponibile un DMG ufficiale firmato. Puoi compilare `PARLO.app` in locale con due comandi dalla cartella del repository:
+Non è ancora disponibile un DMG ufficiale firmato. Puoi compilare `PARLO.app` in locale con tre comandi:
 
 ```sh
+git clone https://github.com/endriu2795/parlo.git && cd parlo
 bash scripts/mac-test.command --deps
 bash scripts/mac-test.command --build
 ```
