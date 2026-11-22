@@ -16,6 +16,8 @@
 
 ---
 
+https://github.com/user-attachments/assets/c93ae9a4-b9a5-4546-ac7c-963bf992d5ac
+
 PARLO captures your microphone and system audio directly on your machine — working with Teams, Zoom, Google Meet, or any other app without inviting a bot — and also transcribes existing local audio/video files or Telegram voice notes.
 
 Transcribe offline with Whisper or online via Groq / any OpenAI-compatible server, search your entire local archive, and use your preferred AI assistant to summarize calls, cross-reference past meetings or local files, and generate documents. When you work in a team, share transcripts through a plain Google Drive, OneDrive, or network folder — no central server required.
