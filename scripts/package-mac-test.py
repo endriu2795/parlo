@@ -26,7 +26,7 @@ for name in ('package.json', 'package-lock.json', 'index.html', 'overlay.html', 
              'src-tauri/macos/it.lproj/InfoPlist.strings',
              'scripts/build-mac.py', 'scripts/build-whisper-metal.py', 'scripts/bundle_python.py', 'scripts/prepare-runtime.py',
              'scripts/mac-test.command', 'scripts/mac-launch.command', 'scripts/mac-test.mjs',
-             'scripts/install-engine.py', 'scripts/setup-engine.py', 'scripts/setup-accelerator.py', 'MACOS.md', 'MACOS.en.md', 'DEVELOPMENT.md', 'USO.md', 'USO.en.md'):
+             'scripts/install-engine.py', 'scripts/setup-engine.py', 'scripts/setup-accelerator.py', 'README.md', 'README.it.md', 'CONTRIBUTING.md', 'docs/guide.md', 'docs/guide.it.md'):
     if not (root / name).is_file():
         raise SystemExit(f'File necessario assente: {name}')
     files.append((root / name, name))

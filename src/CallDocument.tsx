@@ -264,7 +264,7 @@ export default function CallDocument(props: CallDocumentProps) {
           {shared?.error ? <p role="alert">{shared.error}</p> : shared?.loading ? <p role="status">{t("Caricamento…")}</p> : <>
           <div className="transcript-section-label">
             <AudioLines size={13} /><span>{t("Trascrizione")}</span>
-            <span className="transcript-section-count">{segments.length} {segments.length === 1 ? "passaggio" : "passaggi"}</span>
+            <span className="transcript-section-count">{segments.length} {segments.length === 1 ? t("passaggio") : t("passaggi")}</span>
           </div>
           <div className="segments">
             {timeline.map(entry => {

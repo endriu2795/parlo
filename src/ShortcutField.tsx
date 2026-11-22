@@ -7,7 +7,7 @@ const modifiers = ["Ctrl", "Alt", "Shift", "Super"];
 const modifierKey = (key: string) => ({ Control: "Ctrl", Alt: "Alt", Shift: "Shift", Meta: "Super" } as Record<string,string>)[key];
 const keyCode = (code: string) => code === "Space" ? "Space" : /^(Key[A-Z]|Digit[0-9])$/.test(code) ? code.replace(/^(Key|Digit)/, "") : /^F([1-9]|1[0-2])$/.test(code) ? code : null;
 
-export default function ShortcutField({ value, onChange, label = "Shortcut globale", defaultValue = defaultShortcut("Space"), description = "Avvia una call o mostra l’indicatore. Non interrompe la registrazione." }: { value: string; onChange: (value: string) => void; label?: string; defaultValue?: string; description?: string }) {
+export default function ShortcutField({ value, onChange, label = t("Shortcut globale"), defaultValue = defaultShortcut("Space"), description = t("Avvia una call o mostra l’indicatore. Non interrompe la registrazione.") }: { value: string; onChange: (value: string) => void; label?: string; defaultValue?: string; description?: string }) {
   const [listening, setListening] = useState(false), [hint, setHint] = useState(""), [preview, setPreview] = useState<string[]>([]);
   const chord = useRef({ held: new Set<string>(), mods: new Set<string>(), key: "", invalid: false });
   const capture = useRef(false), alive = useRef(true), starting = useRef(false);

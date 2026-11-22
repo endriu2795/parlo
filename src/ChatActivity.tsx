@@ -63,7 +63,7 @@ export default function ChatActivity({
               : t("Attività della risposta")}
         </span>
         <small>
-          {entries.length} {entries.length === 1 ? "passaggio" : "passaggi"}
+          {entries.length === 1 ? t("{0} passaggio", entries.length) : t("{0} passaggi", entries.length)}
         </small>
         <ChevronDown size={13} className={open ? "rotated" : ""} />
       </button>

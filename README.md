@@ -1,176 +1,87 @@
-# PARLO
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="src/assets/parlo-lockup-white.svg">
+    <img src="src/assets/parlo-lockup-indigo.svg" width="220" alt="PARLO">
+  </picture>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="src/assets/parlo-lockup-white.svg">
-  <img src="src/assets/parlo-lockup-indigo.svg" width="200" alt="PARLO">
-</picture>
+  <p><strong>Open-source desktop app to record, transcribe, and chat with your calls — without bots.</strong></p>
 
-[English](README.en.md)
+  <p>
+    <a href="https://github.com/endriu2795/parlo/releases">Download</a> ·
+    <a href="docs/guide.md">User Guide</a> ·
+    <a href="CONTRIBUTING.md">Build &amp; Contribute</a> ·
+    <a href="README.it.md">Italiano</a>
+  </p>
+</div>
 
-PARLO è un’app desktop open source per registrare, trascrivere e consultare
-le call. Salva le registrazioni sul computer, cerca nel testo e usa un
-assistente AI per ricavare riepiloghi, risposte e documenti.
+---
 
-Acquisisce il microfono e l’audio del computer: puoi usarla con Teams, Zoom,
-Meet e le altre app di chiamata, senza invitare un bot alla riunione. Puoi
-trascrivere sul computer con Whisper oppure scegliere un servizio online.
+PARLO captures your microphone and system audio directly on your machine — working with Teams, Zoom, Google Meet, or any other app without inviting a bot — and also transcribes existing local audio/video files or Telegram voice notes.
 
-Per lavorare in team basta una cartella condivisa, anche su Google Drive o
-OneDrive: ciascuno sceglie quali trascrizioni pubblicare e consulta quelle
-dei colleghi direttamente in PARLO.
+Transcribe offline with Whisper or online via Groq / any OpenAI-compatible server, search your entire local archive, and use your preferred AI assistant to summarize calls, cross-reference past meetings or local files, and generate documents. When you work in a team, share transcripts through a plain Google Drive, OneDrive, or network folder — no central server required.
 
-L’app è disponibile per Windows e macOS, in italiano e inglese.
+The interface automatically follows your system language (English or Italian).
 
-## Cosa fa
+## Highlights
 
-### Registrazione
+- **Local recording & file import** — Capture mic, system audio, or both with a global shortcut, or import existing audio/video files without modifying the originals. Take timestamped notes, grab screenshots, and draw on-screen annotations (plus screen/region video recording on Windows).
+- **Offline or cloud transcription** — Run Whisper locally (Tiny, Small, or Turbo with automatic CPU/GPU selection and optional live preview), use Groq, or point to your own OpenAI-compatible Whisper server. Includes a custom dictionary and a personal Telegram bot for voice notes on the go.
+- **Fast local archive** — Everything is stored in a local SQLite database with full-text search across titles, tags, notes, and transcripts. Click any timestamp to replay that exact moment, export to Markdown, and set automatic retention rules.
+- **Bring-your-own AI assistant** — Connect **Claude** (via Claude Code), **OpenAI** (via Codex), **Ollama** (local or remote), or any OpenAI-compatible endpoint.
+  - Mention files, folders, or up to 8 other calls with `@` to compare meetings or match a style template.
+  - Generate Word, Excel, PowerPoint, PDF, quizzes, and slideshows directly — no Office required.
+  - Use your account's MCP connectors (Claude/Codex) and approve shell commands right in chat.
+- **Built-in text-to-speech** — Listen to replies or scripts using local offline engines (Piper, Kokoro, optional Qwen3-TTS on Windows) or online services (Edge, ElevenLabs, custom endpoint).
+- **Zero-server team sharing** — Pick a shared folder on Google Drive, OneDrive, or a LAN share. PARLO publishes clean `.md` transcripts so teammates can read and chat over shared calls right inside the app. Also supports Slack and Teams webhooks.
 
-- Registra il microfono, l’audio del computer o entrambi. Avvia e ferma la
-  registrazione con una scorciatoia, anche mentre usi un’altra app.
-- Aggiungi note, screenshot e annotazioni a schermo.
+## Platform Support
 
-Microfono e audio del computer sono disponibili su Windows e Mac. Su
-Windows puoi scegliere i dispositivi da PARLO o seguire quelli predefiniti;
-su Mac il microfono segue il dispositivo predefinito del sistema, anche
-quando lo cambi durante la call. Su Windows puoi anche registrare il video
-dello schermo o di un’area selezionata. Vedi anche [PARLO su Mac](MACOS.md).
+| Feature | Windows x64 | macOS 13+ (Apple Silicon & Intel) |
+| --- | :---: | :---: |
+| Installer | Ready (`.exe` in Releases) | Build from source (testing in progress) |
+| Mic & system audio | Yes (selectable devices or system default) | Yes (system default mic + ScreenCaptureKit) |
+| Notes, screenshots & annotations | Yes | Yes |
+| Screen / region video recording | Yes | Not yet |
+| Local Whisper, AI assistant, sharing | Yes | Yes |
+| Local Qwen3-TTS (optional) | Yes | Not yet |
 
-### Trascrizione
+## Installation
 
-- Usa Whisper sul computer, con tre livelli di velocità e precisione. Dopo
-  il download del modello puoi trascrivere offline; PARLO sceglie tra
-  processore e scheda grafica in base alle prestazioni.
-- Online puoi usare **Groq** con la tua chiave API.
-- Con **Endpoint personalizzato** puoi collegare un altro servizio di
-  trascrizione, anche un server Whisper sul tuo computer o in rete. Il server
-  va configurato separatamente e deve supportare l’API di trascrizione di
-  OpenAI; in PARLO inserisci indirizzo, ID del modello e chiave API se richiesta.
-- Aggiungi nomi, sigle e prodotti al dizionario per aiutare il riconoscimento.
-- Importa file audio e video, oppure ricevi vocali e file da un bot Telegram
-  personale.
-- Se una trascrizione non riesce, puoi riprovare dall’audio salvato, anche
-  cambiando servizio.
+### Windows x64
 
-### Archivio
+Download the `.exe` installer from [GitHub Releases](https://github.com/endriu2795/parlo/releases). Python and all document/media tools are bundled.
 
-- Aggiungi manualmente tag alle call, per esempio per cliente, progetto o
-  argomento. Cerca nei titoli, nei tag, nelle note e nel testo trascritto;
-  filtra per i tag che hai assegnato e per data.
-- Se conservi l’audio, clicca un orario nella trascrizione per riascoltare
-  quel passaggio.
-- Esporta le trascrizioni in Markdown.
-- Scegli cosa conservare: solo testo, testo e audio oppure testo e video
-  (su Windows).
-- In **Impostazioni → Archivio** scegli quando eliminare automaticamente i
-  dati: dopo 1, 3, 6, 12 o 24 mesi, oppure **Mai** per conservarli finché non
-  li elimini tu.
+> **Note:** The installer is not Authenticode-signed yet, so Windows SmartScreen may show a warning on first run.
 
-### Assistente AI
+### macOS 13+ (Apple Silicon or Intel)
 
-- Collega **Claude** tramite Claude Code o **OpenAI** tramite Codex, usando
-  il tuo account. Puoi anche usare **Ollama** sul computer o su un tuo server,
-  oppure un endpoint compatibile con l’API di OpenAI.
-- Scegli le fonti della chat: trascrizione, note, file e cartelle. Con `@`
-  richiami una fonte o un’altra call per confrontare più riunioni.
-- Crea documenti Word, fogli Excel, presentazioni PowerPoint, PDF, quiz e
-  slideshow. I file prodotti restano associati alla call.
-- Aggiungi file e cartelle per dare contesto all’assistente o guidare stile
-  e formato dei risultati: per esempio un brief di progetto, un documento
-  di esempio, linee guida editoriali o un template `.pptx`.
-- Con Claude e Codex puoi usare i connettori MCP configurati
-  sul tuo account, per esempio Drive o un CRM.
-- Autorizza dalla chat operazioni come l’esecuzione di comandi di shell.
+An official signed DMG is not available yet. You can build `PARLO.app` locally in two commands from the cloned repository:
 
-### Voce
+```sh
+bash scripts/mac-test.command --deps
+bash scripts/mac-test.command --build
+```
 
-Ascolta testi e trascrizioni con motori locali (Piper, Kokoro, Qwen3-TTS) o
-servizi online (Edge, ElevenLabs).
+The first command prepares Node, Python, Rust, and CMake inside the project folder (install Apple Command Line Tools if prompted, then rerun). Once built, open `src-tauri/target/debug/bundle/macos/PARLO.app`. See the [User Guide](docs/guide.md#macos-permissions) for macOS permissions and [CONTRIBUTING.md](CONTRIBUTING.md) for full build instructions.
 
-## Condividere le trascrizioni con il team
+## Quick Start
 
-PARLO usa una cartella condivisa per scambiare le trascrizioni tra colleghi.
-Può essere una cartella sincronizzata da Google Drive per computer o
-OneDrive, oppure una cartella di rete. Ogni persona mantiene il proprio
-archivio locale e pubblica le trascrizioni da condividere.
+1. Open **Settings → Recording** to pick your audio sources and transcription engine (local Whisper downloads its model on first use).
+2. Click **Start recording** or press your global shortcut.
+3. Open the finished call from the archive — configure a provider in **Settings → Assistant** to start chatting with it.
 
-1. Condividi una cartella con il team e rendila accessibile dal computer di
-   ciascun partecipante.
-2. In **Impostazioni → Condivisione**, ciascuno seleziona la propria copia
-   della stessa cartella e attiva la visualizzazione delle trascrizioni degli
-   altri.
-3. Apri una call e usa **Condividi** per pubblicarla nella cartella. Puoi
-   anche attivare la pubblicazione automatica delle nuove trascrizioni.
+## Privacy & Data
 
-Nella scheda **Condivise** trovi le trascrizioni dei colleghi, con ricerca
-per titolo o autore. Puoi leggerle e aprire una chat con l’assistente.
-I file sono in Markdown: puoi consultarli anche con un editor di testo.
-La condivisione include il testo della trascrizione; audio, video, allegati
-e chat restano nell’archivio personale. Drive o OneDrive gestiscono
-sincronizzazione e accessi alla cartella.
+Your archive stays on your computer. Local Whisper, local Ollama, and local voices (Piper, Kokoro, Qwen3-TTS) work completely offline once downloaded.
 
-Puoi anche inviare le trascrizioni a canali **Slack** e **Teams** tramite
-webhook. Vedi la [guida alla condivisione](USO.md#condividere-con-il-team).
+Online services (Groq, Claude, Codex, ElevenLabs, Edge, Telegram, web search, MCP connectors, or remote servers) only receive the data needed for the actions you trigger. API keys, tokens, and webhooks are stored in your operating system's keychain. See [Data and Privacy](docs/guide.md#data-and-privacy) for details.
 
-## Installazione
+## Documentation
 
-- **Windows x64.** Scarica l’installer `.exe` dalle
-  [Releases](https://github.com/endriu2795/parlo/releases). Python e gli
-  strumenti per documenti e media sono già inclusi. L’installer non ha ancora
-  una firma Authenticode, quindi Windows può mostrare un avviso o bloccarlo,
-  secondo le impostazioni di sicurezza.
-- **macOS 13 o successivo** (Apple Silicon o Intel). Per ora l’app si compila
-  dai sorgenti con due comandi: vedi la
-  [guida alla compilazione](DEVELOPMENT.md#macos-apple-silicon-or-intel) (in inglese) e lo
-  [stato della versione Mac](MACOS.md).
+- **[User Guide](docs/guide.md)** ([Italiano](docs/guide.it.md)) — Recording, transcription, AI assistant workflows, voice, team sharing, and privacy.
+- **[Contributing & Building](CONTRIBUTING.md)** — Architecture, Windows/macOS builds, tests, and forks.
+- **[Third-Party Notices](THIRD_PARTY_NOTICES.md)** — Licenses for bundled runtimes, models, and dependencies.
 
-### Compilare dai sorgenti
+## License
 
-Il codice è in questa repository. La [guida alla compilazione](DEVELOPMENT.md)
-(in inglese) descrive i passaggi per Windows e Mac. I componenti esterni
-vengono scaricati da fonti ufficiali a versioni fisse; runtime, modelli e CLI
-degli assistenti sono verificati con hash SHA-256. L’elenco è in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-## Primi passi
-
-1. In **Impostazioni → Registrazione** scegli le sorgenti audio e dove
-   trascrivere. Con la trascrizione locale, il modello si scarica al primo
-   utilizzo.
-2. Premi **Avvia registrazione** o usa la scorciatoia.
-3. Al termine apri la call dall’archivio. Per usare la chat, scegli un
-   fornitore in **Impostazioni → Assistente**.
-
-## Dati e servizi
-
-L’archivio è salvato sul computer. Trascrizione con Whisper, assistente con
-Ollama sullo stesso computer e voci locali possono funzionare offline dopo
-la configurazione e il download dei modelli.
-
-Se usi un servizio online, l’operazione invia i contenuti al servizio scelto:
-audio per la trascrizione, messaggi e fonti per l’assistente, testo per la
-voce. Condivisione, Telegram, ricerca web e connettori usano i rispettivi
-servizi quando li attivi. Chiavi API, token e webhook sono conservati nel
-portachiavi del sistema. I servizi esterni hanno condizioni e costi propri.
-
-La [guida ai dati](USO.md#dati-e-servizi) descrive la conservazione locale e
-l’uso dei servizi online.
-
-## Documentazione
-
-- [Guida all’uso](USO.md): registrazione, trascrizione, assistente, voce,
-  condivisione e dati.
-- [PARLO su Mac](MACOS.md): permessi e stato del collaudo.
-- [Compilare e contribuire](DEVELOPMENT.md) (in inglese): build su Windows
-  e Mac, installer per un fork, test.
-- [Integrazione con Claude Code](CLAUDE-CODE-INTEGRATION.md) (in inglese):
-  come l’app usa la CLI.
-- [Licenze di terze parti](THIRD_PARTY_NOTICES.md) (in inglese).
-
-## Licenza
-
-Il codice originale di PARLO è distribuito con licenza
-[GPL-3.0-only](LICENSE), senza garanzia. Puoi usarlo, modificarlo e
-ridistribuirlo secondo i termini della licenza.
-
-Componenti, modelli e servizi di terze parti mantengono le proprie licenze e
-condizioni: vedi [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+PARLO's original code is licensed under [GPL-3.0-only](LICENSE), with no warranty. Third-party components, models, and external services keep their own licenses and terms — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

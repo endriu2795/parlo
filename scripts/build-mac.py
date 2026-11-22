@@ -41,7 +41,7 @@ if not args.test and (not signing_identity or signing_identity == '-') and not a
     raise SystemExit('Configura APPLE_SIGNING_IDENTITY con un certificato Developer ID Application oppure usa esplicitamente --adhoc per una release locale gratuita. La firma ad hoc non conserva l’identità tra versioni.')
 for tool in ('xcrun', 'cmake', 'cargo', 'npm'):
     if not shutil.which(tool):
-        raise SystemExit(f'Manca {tool} nell’ambiente di sviluppo. Vedi MACOS.md.')
+        raise SystemExit(f'Manca {tool} nell’ambiente di sviluppo. Vedi CONTRIBUTING.md.')
 subprocess.run(['xcrun', '--sdk', 'macosx', '--show-sdk-path'], check=True)
 tools = root / '.tools'
 tools.mkdir(exist_ok=True)
