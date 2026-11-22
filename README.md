@@ -85,6 +85,10 @@ Online services (Groq, Claude, Codex, ElevenLabs, Edge, Telegram, web search, MC
 - **[Contributing & Building](CONTRIBUTING.md)** — Architecture, Windows/macOS builds, tests, and forks.
 - **[Third-Party Notices](THIRD_PARTY_NOTICES.md)** — Licenses for bundled runtimes, models, and dependencies.
 
+## Development Note
+
+PARLO's codebase was written entirely with AI (**GPT 6** and **GPT 6.1 Sol**), built to stress-test those models on a real tool used in everyday work. Keep this in mind when reviewing, running, or adapting the code — feel free to inspect it and use your own coding agent to customize or extend it for your workflow.
+
 ## License
 
 PARLO's original code is licensed under [GPL-3.0-only](LICENSE), with no warranty. Third-party components, models, and external services keep their own licenses and terms — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -85,6 +85,10 @@ I servizi online (Groq, Claude, Codex, ElevenLabs, Edge, Telegram, ricerca web, 
 - **[Compilare e contribuire](CONTRIBUTING.md)** (EN) — Architettura, build Windows/macOS, test e fork.
 - **[Licenze di terze parti](THIRD_PARTY_NOTICES.md)** (EN) — Licenze di runtime, modelli e dipendenze incluse.
 
+## Nota sullo sviluppo
+
+Il codice di PARLO è stato scritto interamente con l’AI (**GPT 6** e **GPT 6.1 Sol**), nato per mettere alla prova questi modelli su uno strumento reale usato nel lavoro di tutti i giorni. Tienine conto quando ispezioni, usi o adatti il codice — puoi naturalmente esplorarlo e usare il tuo coding agent per personalizzarlo o estenderlo al tuo flusso di lavoro.
+
 ## Licenza
 
 Il codice originale di PARLO è distribuito con licenza [GPL-3.0-only](LICENSE), senza garanzia. Componenti, modelli e servizi di terze parti mantengono le proprie licenze e condizioni — vedi [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
