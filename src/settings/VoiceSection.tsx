@@ -145,12 +145,12 @@ export default function VoiceSection({ draft, update, busy, setError }: SectionP
         { value: "piper", title: "Piper", description: t("Sul computer e offline. Voce italiana leggera da scaricare.") },
         { value: "kokoro", title: "Kokoro", description: t("Sul computer e offline. Voce diversa da Piper, generalmente più lenta e più pesante.") },
         { value: "qwen", title: "Qwen3-TTS", description: t("Sul computer, voce più espressiva ma lenta. Richiede un computer potente.") },
-        { value: "custom", title: t("Endpoint personalizzato"), description: t("Invia il testo al server che configuri e ricevi un MP3.") },
+        { value: "custom", title: t("Server personalizzato"), description: t("Invia il testo al server che configuri e ricevi un MP3.") },
         { value: "elevenlabs", title: "ElevenLabs", description: t("Online, alta qualità. Serve una chiave API e consuma i tuoi crediti.") },
       ]} />}
     </Group>
 
-    {enabled && provider === "custom" && <Group title={t("Endpoint personalizzato")}>
+    {enabled && provider === "custom" && <Group title={t("Server di sintesi vocale")}>
       <EndpointFields kind="tts" endpoint={draft.custom_tts} onChange={custom_tts => update({ custom_tts })} disabled={busy} />
     </Group>}
 

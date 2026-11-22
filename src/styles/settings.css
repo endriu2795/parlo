@@ -218,6 +218,67 @@
 .switch-row > .switch {
   grid-area: control;
 }
+.endpoint-fields,
+.endpoint-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.endpoint-fields > .settings-hint {
+  margin: 0;
+}
+.endpoint-section + .endpoint-section,
+.endpoint-fields > .switch-row,
+.endpoint-fields > .settings-advanced {
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.endpoint-section .setting-row + .setting-row {
+  padding-top: 0;
+  border-top: 0;
+}
+.endpoint-auth > div {
+  display: grid;
+  gap: 8px;
+}
+.endpoint-auth .field {
+  grid-template-columns: 1fr;
+  grid-template-areas: "label" "control" "hint";
+  row-gap: 8px;
+}
+.sharing-folder {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+}
+.sharing-folder > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--accent);
+}
+.sharing-folder > div {
+  min-width: 0;
+}
+.sharing-folder strong {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.sharing-folder-path {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.sharing-retention {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
 .sharing-channel {
   display: grid;
   gap: 8px;

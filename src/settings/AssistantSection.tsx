@@ -9,7 +9,7 @@ import { Actions, Advanced, Field, Group, Hint, OptionCards, Switch, type Option
 const providers: OptionCard<AssistantProvider>[] = [
   { value: "claude", title: "Claude", description: t("Usa il tuo account Claude tramite Claude Code.") },
   { value: "codex", title: "Codex", description: t("Usa il tuo account OpenAI tramite Codex.") },
-  { value: "custom", title: t("Endpoint personalizzato"), description: t("Invia la trascrizione e i messaggi al server che configuri.") },
+  { value: "custom", title: t("Server personalizzato"), description: t("Invia la trascrizione e i messaggi al server che configuri.") },
   { value: "ollama", title: "Ollama", description: t("Usa un modello sul computer o su un server Ollama.") },
 ];
 
@@ -107,9 +107,9 @@ export default function AssistantSection({ draft, update, busy, onManageAccount 
     ? [...providers, { value: "gemini" as const, title: "Antigravity", description: t("Accesso Google dedicato.") }]
     : providers;
   return <>
-    <Group title={t("Servizio AI")} description={t("L’assistente lavora sulle tue trascrizioni. Il modello si sceglie direttamente nella chat.")}>
+    <Group title={t("Servizio AI")} description={provider === "custom" ? t("Scegli il servizio con cui l’assistente lavora sulle tue trascrizioni.") : t("L’assistente lavora sulle tue trascrizioni. Il modello si sceglie direttamente nella chat.")}>
       <OptionCards label={t("Fornitore AI nelle impostazioni")} value={provider} onChange={assistant_provider => update({ assistant_provider })} options={options} />
-      {provider === "custom" ? <EndpointFields kind="chat" endpoint={draft.custom_chat} onChange={custom_chat => update({ custom_chat })} disabled={busy} /> : ollama ? <OllamaModels draft={draft} update={update} busy={busy} /> : (
+      {provider === "custom" ? null : ollama ? <OllamaModels draft={draft} update={update} busy={busy} /> : (
         <Actions>
           <button type="button" className="secondary-button" disabled={busy} onClick={onManageAccount}>
             {t("Salva e gestisci account") + " "}{codex ? "Codex" : provider === "gemini" ? "Antigravity" : "Claude"}
@@ -117,6 +117,10 @@ export default function AssistantSection({ draft, update, busy, onManageAccount 
         </Actions>
       )}
     </Group>
+
+    {provider === "custom" && <Group title={t("Server dell’assistente")}>
+      <EndpointFields kind="chat" endpoint={draft.custom_chat} onChange={custom_chat => update({ custom_chat })} disabled={busy} />
+    </Group>}
 
     <Group title={t("Istruzioni")}>
       <Field stacked label={t("Istruzioni di progetto")} hint={t("Aggiungi contesto e preferenze su lingua, tono o formato alle istruzioni di base. Valgono per tutte le registrazioni, anche nelle chat già avviate.")}>

@@ -148,7 +148,7 @@ export default function RecordingSection({ draft, update, busy, health, setError
         }}>
           <option value="local">{t("Su questo computer")}</option>
           <option value="groq">{t("Online con Groq")}</option>
-          <option value="custom">{t("Endpoint personalizzato")}</option>
+          <option value="custom">{t("Server personalizzato")}</option>
         </select>
       </Field>
       <Field label={t("Lingua della call")}>
@@ -225,7 +225,7 @@ export default function RecordingSection({ draft, update, busy, health, setError
       </Actions>
     </Group>}
 
-    {provider === "custom" && <Group title={t("Configurazione del server")}>
+    {provider === "custom" && <Group title={t("Server di trascrizione")}>
       <EndpointFields kind="stt" endpoint={draft.custom_stt} onChange={custom_stt => update({ custom_stt })} disabled={busy} />
     </Group>}
   </>;

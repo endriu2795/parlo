@@ -192,13 +192,27 @@ select option {
   transition: transform 140ms ease;
 }
 .switch:checked {
-  background: var(--accent);
+  background: var(--control-active);
   box-shadow: none;
 }
 .switch:checked::before {
   content: "✓";
   background: #fff;
   transform: translateX(18px);
+}
+:root[data-theme="dark"] .switch:checked::before {
+  content: "";
+}
+:root[data-theme="dark"] .switch:checked::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  left: 28px;
+  width: 5px;
+  height: 9px;
+  border: solid var(--accent-contrast);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 .switch:disabled {
   opacity: 0.45;

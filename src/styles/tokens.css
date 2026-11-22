@@ -114,6 +114,7 @@
   --accent-hover: #303481;
   --accent-soft: #e6e4fa;
   --accent-contrast: #ffffff;
+  --control-active: var(--accent);
   --danger: #a83238;
   --danger-soft: #fbeceb;
   --warning: #93600f;
@@ -166,6 +167,7 @@
   --accent-hover: #b7c8f6;
   --accent-soft: #29354d;
   --accent-contrast: #171e32;
+  --control-active: #526dca;
   --danger: #f0a2a6;
   --danger-soft: #39262d;
   --warning: #e3bb7b;
@@ -234,7 +236,9 @@ textarea::placeholder {
   color: var(--subtle);
 }
 input[type="checkbox"],
-input[type="radio"],
+input[type="radio"] {
+  accent-color: var(--control-active);
+}
 input[type="range"],
 progress {
   accent-color: var(--accent);
