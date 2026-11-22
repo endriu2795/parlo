@@ -16,6 +16,8 @@
 
 ---
 
+https://github.com/user-attachments/assets/c93ae9a4-b9a5-4546-ac7c-963bf992d5ac
+
 PARLO cattura microfono e audio del computer direttamente in locale — funziona con Teams, Zoom, Google Meet o qualsiasi altra app senza invitare bot — e trascrive anche file audio/video locali già esistenti o vocali da Telegram.
 
 Trascrivi offline sul tuo PC con Whisper oppure online (Groq o un server compatibile OpenAI), cerca istantaneamente nell’archivio locale e usa il tuo assistente AI per riassumere call, incrociare riunioni precedenti o file locali e generare documenti. Per lavorare in team basta una normale cartella condivisa su Google Drive, OneDrive o rete locale — nessun server da mantenere.
