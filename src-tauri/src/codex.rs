@@ -42,7 +42,7 @@ pub fn command(settings: &Settings, directory: &Path) -> Result<Command> {
         }
     }
     let mut cmd = Command::new(process::executable(&settings.codex_bin)?);
-    crate::document_runtime::configure(&mut cmd);
+    crate::document_runtime::configure(&mut cmd, directory);
     cmd.args([
         "app-server",
         "--listen",

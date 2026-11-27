@@ -4,7 +4,7 @@ import json
 import subprocess
 
 MODULES = ('docx', 'pptx', 'openpyxl', 'reportlab', 'pypdf', 'pypdfium2',
-           'PIL', 'moviepy', 'imageio_ffmpeg', 'edge_tts', 'piper', 'onnxruntime', 'kokoro_onnx')
+           'PIL', 'imageio_ffmpeg', 'edge_tts', 'piper', 'onnxruntime', 'kokoro_onnx')
 
 
 def check():

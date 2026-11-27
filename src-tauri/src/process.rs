@@ -130,7 +130,7 @@ pub fn chat_command(settings: &Settings, directory: &Path) -> Result<Command> {
         &["mcp__*"][..]
     };
     let mut command = Command::new(executable(&settings.claude_bin)?);
-    crate::document_runtime::configure(&mut command);
+    crate::document_runtime::configure(&mut command, directory);
     let config = serde_json::json!({"disableAllHooks":true,"disableClaudeAiConnectors":!settings.claude_connectors,"enableArtifact":false,"permissions":{"ask":ask}});
     command.args(["-p","--verbose","--output-format","stream-json","--include-partial-messages","--tools","default","--setting-sources","","--settings",&config.to_string(),"--no-session-persistence","--max-turns","40"])
         .env("CLAUDE_CODE_DISABLE_AUTO_MEMORY","1").current_dir(directory);
@@ -392,7 +392,8 @@ pub fn transcribe(
     serde_json::from_value(value["segments"].clone()).map_err(|e| e.to_string())
 }
 fn compose_chat_context(state: &AppState, settings: &Settings, detail: &Detail, prompt: &str, documents: &str, create_output: bool) -> Result<(String,String)> {
-    let mut context = crate::sources::context(state, detail)?;
+    let inventory = crate::sources::inventory(state, detail)?;
+    let mut context = crate::sources::context_from_inventory(state, detail, &inventory)?;
     context.push_str(&crate::sources::cited_calls(state, detail, prompt)?);
     context.push_str(documents);
     let voice_context = crate::tts::context(settings);
@@ -402,6 +403,9 @@ fn compose_chat_context(state: &AppState, settings: &Settings, detail: &Detail, 
         context.push_str("\n<stato_trascrizione>Il testo della call è provvisorio e incompleto: questa richiesta contiene solo quanto disponibile al momento dell’invio. Non conosci le frasi successive. Le nuove domande riceveranno il testo aggiornato.</stato_trascrizione>\n");
     }
     let output = crate::chat_files::directory(state, &detail.call.id, create_output)?;
+    if create_output {
+        crate::document_runtime::write_media_scope(&output, &inventory.media)?;
+    }
     context.push_str(&format!("\n<file_output>\nLa cartella di lavoro e di output locale di questa call è {}. Quando l’utente chiede un file, crealo realmente con gli strumenti locali in questa cartella, usando un nome leggibile e distinto dai file esistenti. I file finali qui salvati compaiono nei Files della call e sono scaricabili. Usa la sottocartella .work per script temporanei e dipendenze. Puoi usare come reference le fonti abilitate, senza modificare i template originali. Non usare pubblicazione online o Artifacts come sostituti di un file locale. Per formati come PPTX verifica gli strumenti e le librerie necessari: se mancano o la creazione fallisce, dichiaralo senza inventare un risultato. Nella risposta collega i file reali tramite Markdown e percorso assoluto.\n</file_output>\n",serde_json::to_string(&output.to_string_lossy()).map_err(|e|e.to_string())?));
     // A warm ACP session already owns the conversation. Send only fresh context
     // and the new question on subsequent turns, without duplicating its history.

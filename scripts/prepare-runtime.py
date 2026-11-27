@@ -28,33 +28,6 @@ def remove_build_tools(site):
             shutil.rmtree(directory)
 
 
-def patch_pillow_apng(site):
-    # CVE-2026-112399. MoviePy 2.2.1 requires Pillow <12, so backport
-    # the delayed allocation from Pillow 13 to the locked wheel.
-    plugin = site / 'PIL/PngImagePlugin.py'
-    source = plugin.read_text(encoding='utf-8')
-    early_fill = (
-        '        elif self.dispose_op == Disposal.OP_BACKGROUND:\n'
-        '            self.dispose = Image.core.fill(self.mode, self.size)\n'
-        '            self.dispose = self._crop(self.dispose, self.dispose_extent)\n'
-    )
-    paste = (
-        '            if self.dispose:\n'
-        '                self.im.paste(self.dispose, self.dispose_extent)\n'
-    )
-    delayed_fill = (
-        '            if self.dispose_op == Disposal.OP_BACKGROUND:\n'
-        '                x0, y0, x1, y1 = self.dispose_extent\n'
-        '                dispose = Image.core.fill(self.mode, (x1 - x0, y1 - y0))\n'
-        '                self.im.paste(dispose, self.dispose_extent)\n'
-        '            elif self.dispose:\n'
-        '                self.im.paste(self.dispose, self.dispose_extent)\n'
-    )
-    if source.count(early_fill) != 1 or source.count(paste) != 1:
-        raise RuntimeError('Pillow changed. Review the CVE-2026-112399 backport.')
-    plugin.write_text(source.replace(early_fill, '').replace(paste, delayed_fill), encoding='utf-8')
-
-
 def cached_runtime_matches(manifest_file, packed, identity, modules=()):
     if not manifest_file.is_file() or not packed.is_file():
         return False
@@ -113,8 +86,6 @@ def prepare(root, target_platform, wheelhouse=None, kind='engine'):
         if wheelhouse:
             command += ['--no-index', '--find-links', str(wheelhouse)]
         subprocess.run(command, check=True, env=environment)
-        if documents:
-            patch_pillow_apng(site)
         probe = (document_probe.read_bytes().decode('utf-8')
                  if documents else 'import numpy, av, psutil, faster_whisper, ctranslate2, onnxruntime; '
                  + ('import openvino, openvino_genai; ' if target_platform == 'win-x64' else '')

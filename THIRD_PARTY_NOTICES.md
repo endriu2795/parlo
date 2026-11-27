@@ -20,7 +20,7 @@ PARLO's original code is licensed under [GPL-3.0-only](LICENSE). Bundled runtime
 | **FFmpeg** (via PyAV / imageio-ffmpeg) | Per wheel build | LGPL / GPL | [FFmpeg legal](https://ffmpeg.org/legal.html) |
 | **CPython** (`python-build-standalone`) | Pinned in [engine/python-runtime.json](engine/python-runtime.json) | PSF License | [Python license](https://docs.python.org/3/license.html) · [Distribution](https://github.com/astral-sh/python-build-standalone) |
 
-Full Python dependency lockfiles live in [engine/requirements-lock.txt](engine/requirements-lock.txt) (transcription), [engine/documents-requirements-lock.txt](engine/documents-requirements-lock.txt) (documents/media, including the Pillow 11.3.0 fix for [CVE-2026-112399](https://github.com/python-pillow/Pillow/security/advisories/GHSA-5xm2-6676-qcp9) applied in [scripts/prepare-runtime.py](scripts/prepare-runtime.py)), and [engine/qwen-tts-requirements.txt](engine/qwen-tts-requirements.txt). Keep package `dist-info` metadata and license files intact when preparing runtimes.
+Full Python dependency lockfiles live in [engine/requirements-lock.txt](engine/requirements-lock.txt) (transcription), [engine/documents-requirements-lock.txt](engine/documents-requirements-lock.txt) (documents/media), and [engine/qwen-tts-requirements.txt](engine/qwen-tts-requirements.txt). Keep package `dist-info` metadata and license files intact when preparing runtimes.
 
 ## Local Speech & Models
 
@@ -47,7 +47,7 @@ Exact versions (including transitive dependencies) are pinned in [package-lock.j
 
 ## External CLIs & Online Services
 
-- **Claude Code** is proprietary and governed by [Anthropic's terms](https://code.claude.com/docs/en/legal-and-compliance). PARLO invokes the official CLI binary (also used for tool execution with Ollama). `@anthropic-ai/claude-agent-sdk` is a dev-only verification dependency.
+- **Claude Code** is proprietary and governed by [Anthropic's terms](https://code.claude.com/docs/en/legal-and-compliance). PARLO invokes the official CLI binary (also used for tool execution with Ollama). The developer checks use that same CLI to read metadata.
 - **Codex**, **Ollama**, and their models keep their own licenses; pinned CLI manifests live in `engine/*-runtime.json`.
 - **Groq**, **Microsoft Edge TTS**, **ElevenLabs**, **Telegram**, **Slack**, and **Teams** are external services governed by their own terms and pricing.
 

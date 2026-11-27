@@ -90,7 +90,7 @@ fn apply_support(item: &mut Source, provider: &str) {
     }
     if item.id.starts_with("output:") && Path::new(item.path.as_ref().unwrap())
         .extension().and_then(|ext| ext.to_str()).is_some_and(|ext| ext.eq_ignore_ascii_case("mp4")) {
-        item.read_hint = Some("Video generato: usa FFmpeg/MoviePy per verifiche tecniche e montaggi richiesti, senza interpretarlo come input multimodale. Le esclusioni dell’utente restano valide.".into());
+        item.read_hint = Some("Video generato: usa l’helper multimediale per verifiche tecniche e montaggi richiesti. Le esclusioni dell’utente restano valide.".into());
         return;
     }
     let (reason, hint) = file_support(Path::new(item.path.as_ref().unwrap()), provider);
@@ -113,10 +113,44 @@ fn validate_attachments(paths: &[PathBuf], provider: &str) -> Result<()> {
     Ok(())
 }
 #[derive(Serialize)]
+pub(crate) struct MediaFolder {
+    path: String,
+    excluded: Vec<String>,
+}
+
+#[derive(Default, Serialize)]
+pub(crate) struct MediaSources {
+    files: Vec<String>,
+    folders: Vec<MediaFolder>,
+    excluded: Vec<String>,
+}
+
+fn media_sources(sources: &[Source], prefs: &Preferences) -> MediaSources {
+    let mut access = MediaSources::default();
+    for source in sources.iter().filter(|source| source.available && source.parent_id.is_none()) {
+        let Some(path) = source.path.as_deref().and_then(|path| canonical_path(Path::new(path)).ok()) else { continue };
+        if !source.enabled {
+            access.excluded.push(path.to_string_lossy().into_owned());
+        } else if source.kind == "folder" {
+            let prefix = format!("{}/", source.id);
+            let excluded = prefs.excluded.iter().filter_map(|id| id.strip_prefix(&prefix))
+                .map(|suffix| path.join(suffix).to_string_lossy().into_owned())
+                .collect();
+            access.folders.push(MediaFolder { path: path.to_string_lossy().into_owned(), excluded });
+        } else {
+            access.files.push(path.to_string_lossy().into_owned());
+        }
+    }
+    access
+}
+
+#[derive(Serialize)]
 pub struct Inventory {
     sources: Vec<Source>,
     truncated: bool,
     generated: Vec<crate::chat_files::GeneratedFile>,
+    #[serde(skip)]
+    pub(crate) media: MediaSources,
 }
 
 impl Inventory {
@@ -392,6 +426,8 @@ pub fn inventory(state: &AppState, detail: &model::Detail) -> Result<Inventory> 
             &prefs,
         ));
     }
+    // Technical media tools can process a source the model cannot interpret.
+    let media = media_sources(&sources, &prefs);
     sources.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     let mut mentions = HashMap::new();
     for item in &sources {
@@ -411,6 +447,7 @@ pub fn inventory(state: &AppState, detail: &model::Detail) -> Result<Inventory> 
         generated,
         sources,
         truncated,
+        media,
     })
 }
 fn editable(state: &Shared, id: &str) -> Result<model::Detail> {
@@ -543,9 +580,8 @@ pub fn cited_calls(state: &AppState, detail: &model::Detail, prompt: &str) -> Re
 }
 
 // Text is inline; other files are read on demand by the provider's tools.
-pub fn context(state: &AppState, detail: &model::Detail) -> Result<String> {
-    let inventory = inventory(state, detail)?;
-    let mut text = inline_text(&inventory, detail);
+pub(crate) fn context_from_inventory(state: &AppState, detail: &model::Detail, inventory: &Inventory) -> Result<String> {
+    let mut text = inline_text(inventory, detail);
     let enabled = |id: &str| inventory.sources.iter().any(|s| s.id == id && s.enabled && s.available);
     let images: Vec<_> = detail
         .screenshots
@@ -565,6 +601,11 @@ pub fn context(state: &AppState, detail: &model::Detail) -> Result<String> {
     }
     text.push_str("</fonti_disponibili>\n");
     Ok(text)
+}
+
+#[cfg(test)]
+pub(crate) fn context(state: &AppState, detail: &model::Detail) -> Result<String> {
+    context_from_inventory(state, detail, &inventory(state, detail)?)
 }
 
 /// Antigravity confines native tools to the session workspace. Copy only enabled,
@@ -689,7 +730,7 @@ mod antigravity_tests {
         let folder = source("folder", "Fonti".into(), Some(root.clone()), "folder", "chat", &prefs);
         let mut file = source("folder/template.txt", "template.txt".into(), Some(original.clone()), "file", "chat", &prefs); file.parent_id=Some("folder".into());
         let mut denied = source("excluded", "escluso.txt".into(), Some(excluded), "file", "chat", &prefs); denied.enabled=false;
-        let inventory = Inventory { sources:vec![folder,file,denied], truncated:false, generated:vec![] };
+        let inventory = Inventory { sources:vec![folder,file,denied], truncated:false, generated:vec![], media:MediaSources::default() };
         let snapshot = stage_inventory(&inventory,&workspace).unwrap(); let saved = snapshot.root.clone();
         let copied = PathBuf::from(&snapshot.replacements.iter().find(|(path,_)|path==original.to_str().unwrap()).unwrap().1);
         let rewritten = snapshot.context(&serde_json::json!({"path":original}).to_string());
@@ -706,7 +747,7 @@ mod antigravity_tests {
         let workspace = root.join("workspace"); fs::create_dir_all(&workspace).unwrap();
         let original = root.join("large.txt"); fs::File::create(&original).unwrap().set_len(64 * 1024 * 1024 + 1).unwrap();
         let file = source("large", "large.txt".into(), Some(original), "file", "chat", &Preferences::default());
-        let inventory = Inventory { sources:vec![file], truncated:false, generated:vec![] };
+        let inventory = Inventory { sources:vec![file], truncated:false, generated:vec![], media:MediaSources::default() };
         assert!(stage_inventory(&inventory,&workspace).err().unwrap().contains("64 MB"));
         assert_eq!(fs::read_dir(workspace.join(".work")).unwrap().count(),0);
         fs::remove_dir_all(root).unwrap();
@@ -1163,6 +1204,10 @@ mod tests {
         assert!(text.contains("nota_sintetica"));
         assert!(text.contains("riferimento.txt"));
         assert!(!text.contains("contenuto_file_da_non_inviare_automaticamente"));
+        let media = inventory(&state, &detail).unwrap().media;
+        assert!(media.files.contains(&canonical_path(&file).unwrap().to_string_lossy().into_owned()));
+        assert!(media.files.contains(&canonical_path(&video_path).unwrap().to_string_lossy().into_owned()));
+        assert!(media.folders.iter().any(|folder| Path::new(&folder.path) == canonical_path(&root).unwrap()));
         for provider in ["claude", "codex"] {
             {
                 let conn = state.db.guard();
@@ -1202,6 +1247,7 @@ mod tests {
         let text = context(&state, &detail).unwrap();
         assert!(!text.contains("testo_trascrizione_sintetica"));
         assert!(!text.contains("nota_sintetica"));
+        assert!(inventory(&state, &detail).unwrap().media.folders.is_empty());
         assert!(inventory(&state, &detail)
             .unwrap()
             .sources

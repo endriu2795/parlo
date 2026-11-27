@@ -10,6 +10,26 @@ fn platform() -> &'static str {
 }
 fn helper(root: &Path) -> PathBuf { root.join("document_tools.py") }
 
+pub(crate) fn write_media_scope(directory: &Path, sources: &crate::sources::MediaSources) -> Result<(), String> {
+    // Keep the policy out of the assistant's writable output directory.
+    let parent = directory.parent().ok_or("Cartella di lavoro dei media non valida.")?;
+    let scope = parent.join(".parlo-media-scope.json");
+    let pending = parent.join(format!(".media-scope-{}.tmp", uuid::Uuid::new_v4()));
+    let data = serde_json::to_vec(sources).map_err(|error| error.to_string())?;
+    use std::io::Write;
+    let replace = (|| {
+        let mut file = fs::File::create_new(&pending)?;
+        file.write_all(&data)?;
+        drop(file);
+        fs::rename(&pending, scope)
+    })();
+    if let Err(error) = replace {
+        let _ = fs::remove_file(&pending);
+        return Err(error.to_string());
+    }
+    Ok(())
+}
+
 pub(crate) fn prepare(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let root = root();
     let python = if let Some(python) = python_runtime::prepared_installed_for(&root, PreparedKind::Documents) {
@@ -47,7 +67,7 @@ fn instructions(tools: &Value) -> String {
 
 // Preview only: no runtime installation, Python process or file writes.
 pub fn preview_context() -> String {
-    instructions(&json!({"python":root().join("prepared-python"),"helper":helper(&root()),"ffmpeg":"ffmpeg"}))
+    instructions(&json!({"python":root().join("prepared-python"),"helper":helper(&root())}))
 }
 pub fn context(app: &tauri::AppHandle) -> String {
     let result = prepare(app).and_then(|python| probe(&python, &helper(&root())));
@@ -58,8 +78,9 @@ pub fn context(app: &tauri::AppHandle) -> String {
 }
 
 /// Help subprocesses choose the same private interpreter; leave the system untouched.
-pub fn configure(command: &mut Command) {
+pub fn configure(command: &mut Command, directory: &Path) {
     let root = root();
+    command.env("PARLO_MEDIA_WORKSPACE", directory);
     if let Some(python) = python_runtime::prepared_installed_for(&root, PreparedKind::Documents) {
         let mut paths = vec![python.parent().unwrap().to_path_buf()];
         if let Some(existing) = std::env::var_os("PATH") { paths.extend(std::env::split_paths(&existing)); }

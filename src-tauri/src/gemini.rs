@@ -63,6 +63,7 @@ impl Rpc {
         }
         command
             .env("GEMINI_HOME", home)
+            .env("PARLO_MEDIA_WORKSPACE", directory)
             .env("AGY_ACP_FORCE_FILE_STORAGE", "1")
             .env_remove("GEMINI_SYSTEM_MD")
             .env_remove("GEMINI_CLI_HOME")

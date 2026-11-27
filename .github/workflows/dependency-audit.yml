@@ -1,0 +1,33 @@
+name: Dependency audit
+
+on:
+  schedule:
+    - cron: '17 9 * * 1'
+      timezone: Europe/Rome
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  osv:
+    name: Check known vulnerabilities
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Scan dependency lockfiles with OSV-Scanner
+        run: |
+          scanner="$RUNNER_TEMP/osv-scanner"
+          curl --fail --silent --show-error --location --retry 2 --output "$scanner" \
+            https://github.com/google/osv-scanner/releases/download/v2.7.1/osv-scanner_linux_amd64
+          printf '%s  %s\n' 'fb7dab19a8bd9bbe5c3189f09d4b7ee1820c9553a23bac202648a56efd2f6ee8' "$scanner" | sha256sum --check
+          chmod +x "$scanner"
+          "$scanner" scan source \
+            --lockfile=package-lock.json \
+            --lockfile=src-tauri/Cargo.lock \
+            --lockfile=requirements.txt:engine/requirements-lock.txt \
+            --lockfile=requirements.txt:engine/documents-requirements-lock.txt \
+            --lockfile=requirements.txt:engine/qwen-tts-requirements.txt

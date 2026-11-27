@@ -7,6 +7,11 @@ fn err(e: rusqlite::Error) -> String {
     e.to_string()
 }
 
+fn read_count(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<usize> {
+    let value: i64 = row.get(index)?;
+    usize::try_from(value).map_err(|_| rusqlite::Error::IntegralValueOutOfRange(index, value))
+}
+
 pub fn open(path: &Path) -> Result<Connection> {
     let conn = Connection::open(path).map_err(err)?;
     conn.execute_batch("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA secure_delete=ON;
@@ -227,7 +232,7 @@ fn page(conn: &Connection, query: &str, limit: usize) -> Result<CallPage> {
 /// Every tag in the archive with the number of calls using it, most used first.
 pub fn tags(conn: &Connection) -> Result<Vec<TagCount>> {
     let mut stmt = conn.prepare("SELECT min(tag),count(*) FROM call_tags GROUP BY tag COLLATE NOCASE ORDER BY count(*) DESC,min(tag) COLLATE NOCASE").map_err(err)?;
-    let rows = stmt.query_map([], |r| Ok(TagCount { tag: r.get(0)?, count: r.get(1)? })).map_err(err)?;
+    let rows = stmt.query_map([], |r| Ok(TagCount { tag: r.get(0)?, count: read_count(r, 1)? })).map_err(err)?;
     rows.collect::<std::result::Result<Vec<_>, _>>().map_err(err)
 }
 #[derive(Clone, Copy)]
@@ -269,7 +274,7 @@ pub fn page_filtered(
         None
     } else {
         let count_sql = format!("SELECT count(*) FROM calls c{filter}");
-        Some(conn.query_row(&count_sql, params![search,q,title_search,date_from,date_to,tag_filter], |row| row.get(0)).map_err(err)?)
+        Some(conn.query_row(&count_sql, params![search,q,title_search,date_from,date_to,tag_filter], |row| read_count(row, 0)).map_err(err)?)
     };
     let mut stmt = conn.prepare(&sql).map_err(err)?;
     let rows = stmt.query_map(params![search,q,title_search,date_from,date_to,tag_filter,key,cursor_id],row_call).map_err(err)?;
@@ -286,7 +291,7 @@ pub fn page_filtered(
     let mut search_results = std::collections::BTreeMap::new();
     if !q.is_empty() {
         for call in &items {
-            let count = conn.query_row("SELECT count(*) FROM passage_search WHERE passage_search MATCH ?1 AND call_id=?2", params![search, call.id], |r| r.get(0)).map_err(err)?;
+            let count = conn.query_row("SELECT count(*) FROM passage_search WHERE passage_search MATCH ?1 AND call_id=?2", params![search, call.id], |r| read_count(r, 0)).map_err(err)?;
             let mut statement = conn.prepare("SELECT source,CAST(timestamp_ms AS INTEGER),snippet(passage_search,4,?3,?4,' … ',28) FROM passage_search WHERE passage_search MATCH ?1 AND call_id=?2 ORDER BY CAST(timestamp_ms AS INTEGER),rowid LIMIT 3").map_err(err)?;
             let hits = statement.query_map(params![search, call.id, "\u{e000}", "\u{e001}"], |r| Ok(SearchHit { source:r.get(0)?, timestamp_ms:r.get(1)?, excerpt:r.get(2)? })).map_err(err)?.collect::<std::result::Result<Vec<_>,_>>().map_err(err)?;
             search_results.insert(call.id.clone(), CallSearchResult { count, hits });
@@ -580,7 +585,8 @@ pub fn append_response(conn: &Connection, id: &str, content: &str, model: &str) 
 }
 
 pub fn save_activity(conn: &Connection, run: &crate::activity::ChatRun) -> Result<()> {
-    conn.execute("UPDATE messages SET activity_json=?3 WHERE id=(SELECT id FROM messages WHERE call_id=?1 ORDER BY id LIMIT 1 OFFSET ?2) AND role='user'", params![run.call_id, run.user_index, serde_json::to_string(&run.entries).map_err(|e| e.to_string())?]).map_err(err)?;
+    let user_index = i64::try_from(run.user_index).map_err(|_| "Indice del messaggio non valido.")?;
+    conn.execute("UPDATE messages SET activity_json=?3 WHERE id=(SELECT id FROM messages WHERE call_id=?1 ORDER BY id LIMIT 1 OFFSET ?2) AND role='user'", params![run.call_id, user_index, serde_json::to_string(&run.entries).map_err(|e| e.to_string())?]).map_err(err)?;
     Ok(())
 }
 pub fn clear_chat(conn: &Connection, id: &str) -> Result<()> {
@@ -751,7 +757,7 @@ mod tests {
         assert!(set_tags(&mut conn, "missing", vec!["Tag".into()]).is_err());
         assert_eq!(detail(&conn, "tags").unwrap().call.tags.len(), 2);
         delete(&mut conn, "tags").unwrap();
-        assert_eq!(conn.query_row("SELECT count(*) FROM call_tags", [], |r|r.get::<_,usize>(0)).unwrap(), 0);
+        assert_eq!(conn.query_row("SELECT count(*) FROM call_tags", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
     }
     #[test]
     fn capture_diagnostics_survive_audio_cleanup_and_cascade_with_call() {

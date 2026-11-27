@@ -6,9 +6,81 @@ from contextlib import closing
 import importlib.metadata
 import json
 import math
+import os
 from pathlib import Path
+import re
+import shutil
 import subprocess
 import sys
+from tempfile import TemporaryDirectory
+
+
+MEDIA_INPUT_FORMATS = 'mov,matroska,avi,mpeg,mpegts,wav,mp3,aac,flac,ogg,aiff,asf'
+MEDIA_OUTPUT_EXTENSIONS = {'.mp4', '.mov', '.mkv', '.avi', '.webm', '.wav', '.mp3',
+                           '.m4a', '.aac', '.ogg', '.opus', '.flac'}
+
+
+class MediaScope:
+    def __init__(self, directory, sources):
+        self.directory = directory.resolve(strict=True)
+        self.files = {Path(path) for path in sources['files']}
+        self.excluded = {Path(path) for path in sources['excluded']}
+        self.folders = [(Path(folder['path']), {Path(path) for path in folder['excluded']})
+                        for folder in sources['folders']]
+
+    @classmethod
+    def current(cls):
+        workspace = os.environ.get('PARLO_MEDIA_WORKSPACE')
+        if workspace:
+            directory = Path(workspace).resolve(strict=True)
+            path = directory.parent / '.parlo-media-scope.json'
+            if path.is_file() and path.resolve() == path:
+                return cls(directory, json.loads(path.read_text(encoding='utf-8')))
+        raise ValueError('Avvia lo strumento multimediale dalla chat di PARLO.')
+
+    def input(self, path):
+        path = path.resolve(strict=True)
+        if path.is_file() and (
+            path in self.files
+            or (path.is_relative_to(self.directory) and path not in self.excluded)
+            or any(path.is_relative_to(folder) and path not in excluded for folder, excluded in self.folders)
+        ):
+            return path
+        raise ValueError('Usa un file della call o una fonte condivisa e abilitata.')
+
+    def output(self, path):
+        if path.is_symlink() or not path.resolve().is_relative_to(self.directory):
+            raise ValueError('Salva il risultato nella cartella della call.')
+        path = path.resolve()
+        if path.exists():
+            raise ValueError('Il file di output esiste già: scegli un nome nuovo.')
+        return path
+
+
+def media_input(path):
+    # The helper handles local media, not playlists or other indirect inputs.
+    return ['-protocol_whitelist', 'file', '-format_whitelist', MEDIA_INPUT_FORMATS, '-i', str(path)]
+
+
+def run_ffmpeg(args, **options):
+    return subprocess.run([str(ffmpeg_binary()), '-hide_banner', '-nostdin', *args],
+                          **({'creationflags': 0x08000000} if sys.platform == 'win32' else {}), **options)
+
+
+def publish_media(staged, output):
+    try:
+        os.link(staged, output)
+    except FileExistsError:
+        raise ValueError('Il file di output esiste già: scegli un nome nuovo.') from None
+    except OSError:
+        # Some external disks do not implement hard links.
+        target = output.open('xb')
+        try:
+            with target, staged.open('rb') as source:
+                shutil.copyfileobj(source, target)
+        except OSError:
+            output.unlink(missing_ok=True)
+            raise
 
 
 def ffmpeg_binary():
@@ -22,10 +94,10 @@ def ffmpeg_binary():
 
 
 def info():
+    ffmpeg_binary()
     packages = ['python-docx', 'python-pptx', 'openpyxl', 'reportlab', 'pypdf',
-                'pypdfium2', 'Pillow', 'moviepy', 'imageio-ffmpeg', 'edge-tts']
+                'pypdfium2', 'Pillow', 'imageio-ffmpeg', 'edge-tts']
     return {'python': sys.executable, 'helper': str(Path(__file__).resolve()),
-            'ffmpeg': str(ffmpeg_binary()),
             'packages': {name: importlib.metadata.version(name) for name in packages}}
 
 
@@ -95,35 +167,52 @@ def render_pdf(path, output, pages, scale):
     return {'images': saved}
 
 
+def validate_mp4(path):
+    try:
+        result = run_ffmpeg(
+            ['-xerror', *media_input(path.resolve()),
+             '-map', '0:v:0', '-frames:v', '1', '-progress', 'pipe:1', '-nostats',
+             '-f', 'null', '-'],
+            capture_output=True, encoding='utf-8', errors='replace', timeout=30,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise ValueError('Tempo limite nella verifica del video.') from error
+    if result.returncode or not re.search(r'^frame=\s*[1-9]\d*\r?$', result.stdout, re.MULTILINE):
+        raise ValueError('Video senza fotogrammi validi.')
+    input_info, _, output_info = result.stderr.partition('Stream mapping:')
+    clock = re.search(r'(?m)^\s*Duration: (\d+):(\d+):(\d+(?:\.\d+)?)', input_info)
+    video = re.search(r'(?m)^\s*Stream #0:\d+[^\r\n]*?: Video:[^\r\n]*', output_info)
+    size = re.search(r',\s*([1-9]\d*)x([1-9]\d*)(?=[,\s]|$)', video[0]) if video else None
+    if not clock or not size:
+        raise ValueError('Video senza fotogrammi validi.')
+    hours, minutes, seconds = map(float, clock.groups())
+    duration = hours * 3600 + minutes * 60 + seconds
+    if duration <= 0:
+        raise ValueError('Video senza fotogrammi validi.')
+    audio = re.search(r'(?m)^\s*Stream #0:\d+[^\r\n]*?: Audio:', input_info) is not None
+    return {'valid': True, 'duration': duration, 'size': list(map(int, size.groups())), 'audio': audio}
+
+
 def validate(path):
     if not path.is_file() or path.stat().st_size == 0:
         raise ValueError('File mancante o vuoto.')
     if path.suffix.lower() == '.mp4':
-        import os
-        os.environ['FFMPEG_BINARY'] = str(ffmpeg_binary())
-        from moviepy import VideoFileClip
-        with VideoFileClip(str(path), audio=False) as clip:
-            if not clip.duration or clip.duration <= 0 or min(clip.size) <= 0:
-                raise ValueError('Video senza fotogrammi validi.')
-            clip.get_frame(0)
-            return {'valid': True, 'duration': clip.duration, 'size': clip.size,
-                    'audio': bool(clip.reader.infos.get('audio_found'))}
+        return validate_mp4(path)
     data = extract(path)
     return {'valid': True, 'format': path.suffix.lower(), 'structural_check': True,
             'layout_checked': False, 'formulas_recalculated': False,
             'sections': len(next(iter(data.values())))}
 
 
-def slideshow(manifest, output):
-    import os
+def slideshow(manifest, output, scope):
     os.environ['IMAGEIO_FFMPEG_EXE'] = str(ffmpeg_binary())
     from imageio_ffmpeg import write_frames
     from PIL import Image, ImageOps
 
+    manifest = scope.input(manifest)
+    output = scope.output(output)
     if output.suffix.lower() != '.mp4':
         raise ValueError('Lo slideshow deve essere un file MP4.')
-    if output.exists():
-        raise ValueError('Il file di output esiste già: scegli un nome nuovo.')
     spec = json.loads(manifest.read_text(encoding='utf-8-sig'))
     width, height = spec.get('size', [1920, 1080])
     fps = spec.get('fps', 24)
@@ -141,27 +230,65 @@ def slideshow(manifest, output):
             raise ValueError('Durata slide non valida.')
         counts.append(max(1, round(duration * fps)))
     total = sum(counts) / fps
-    audio = str(manifest.parent / spec['audio']) if spec.get('audio') else None
+    audio = scope.input(manifest.parent / spec['audio']) if spec.get('audio') else None
+    images = [scope.input(manifest.parent / slide['image']) for slide in slides]
     output.parent.mkdir(parents=True, exist_ok=True)
-    # Stream one image at a time: long slideshows do not retain every RGB frame.
-    with closing(write_frames(str(output), (width, height), fps=fps, codec='libx264',
-                              macro_block_size=1, ffmpeg_log_level='error', audio_path=audio,
-                              audio_codec='aac', output_params=['-threads', '2', '-t', str(total)])) as writer:
-        writer.send(None)
-        for slide, count in zip(slides, counts):
-            path = manifest.parent / slide['image']
-            with Image.open(path) as image:
-                image = ImageOps.exif_transpose(image).convert('RGBA')
-                fitted = ImageOps.contain(image, (width, height), Image.Resampling.LANCZOS)
-                frame = Image.new('RGB', (width, height), spec.get('background', '#000000'))
-                frame.paste(fitted, ((width - fitted.width) // 2, (height - fitted.height) // 2), fitted)
-                pixels = frame.tobytes()
-            for _ in range(count):
-                writer.send(pixels)
-    result = validate(output)
-    if abs(result['duration'] - total) > 1 / fps + 0.05:
-        raise ValueError('La durata del video generato non corrisponde allo slideshow.')
+    with TemporaryDirectory(prefix='.slideshow-', dir=output.parent) as staging:
+        video = Path(staging) / 'video.mp4'
+        # Stream one image at a time: long slideshows do not retain every RGB frame.
+        with closing(write_frames(str(video), (width, height), fps=fps, codec='libx264',
+                                   macro_block_size=1, ffmpeg_log_level='error',
+                                   output_params=['-threads', '2', '-t', str(total)])) as writer:
+            writer.send(None)
+            for path, count in zip(images, counts):
+                with Image.open(path) as image:
+                    image = ImageOps.exif_transpose(image).convert('RGBA')
+                    fitted = ImageOps.contain(image, (width, height), Image.Resampling.LANCZOS)
+                    frame = Image.new('RGB', (width, height), spec.get('background', '#000000'))
+                    frame.paste(fitted, ((width - fitted.width) // 2, (height - fitted.height) // 2), fitted)
+                    pixels = frame.tobytes()
+                for _ in range(count):
+                    writer.send(pixels)
+        if audio:
+            muxed = Path(staging) / 'muxed.mp4'
+            run_ffmpeg(['-v', 'error', *media_input(video), *media_input(audio),
+                        '-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy', '-c:a', 'aac',
+                        '-t', str(total), str(muxed)], check=True)
+            video = muxed
+        result = validate(video)
+        if abs(result['duration'] - total) > 1 / fps + 0.05:
+            raise ValueError('La durata del video generato non corrisponde allo slideshow.')
+        publish_media(video, output)
     return result
+
+
+def convert_media(args, scope):
+    input_path = scope.input(args.input)
+    output = scope.output(args.output)
+    if output.suffix.lower() not in MEDIA_OUTPUT_EXTENSIONS:
+        raise ValueError('Scegli un formato di uscita audio o video supportato.')
+    options = ['-v', 'error', '-n']
+    if args.start is not None:
+        options.extend(['-ss', str(args.start)])
+    options.extend(media_input(input_path))
+    if args.audio is not None:
+        options.extend(media_input(scope.input(args.audio)))
+        options.extend(['-map', '0:v:0', '-map', '1:a:0'])
+    if args.duration is not None:
+        options.extend(['-t', str(args.duration)])
+    if args.size is not None:
+        if not re.fullmatch(r'[1-9]\d{0,3}x[1-9]\d{0,3}', args.size):
+            raise ValueError('Dimensioni video non valide. Usa larghezza x altezza senza spazi.')
+        options.extend(['-s', args.size])
+    if any(value is not None and (not math.isfinite(value) or value < 0)
+           for value in (args.start, args.duration)) or args.duration == 0:
+        raise ValueError('Tempo di inizio o durata non validi.')
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(prefix='.conversion-', dir=output.parent) as staging:
+        result = Path(staging) / output.name
+        run_ffmpeg([*options, str(result)], check=True)
+        publish_media(result, output)
+    return {'file': str(output)}
 
 
 def main():
@@ -180,17 +307,21 @@ def main():
     video.add_argument('manifest', type=Path)
     video.add_argument('output', type=Path)
     ffmpeg = commands.add_parser('ffmpeg')
-    ffmpeg.add_argument('args', nargs=argparse.REMAINDER)
+    ffmpeg.add_argument('-i', '--input', required=True, type=Path)
+    ffmpeg.add_argument('--output', required=True, type=Path)
+    ffmpeg.add_argument('--audio', type=Path)
+    ffmpeg.add_argument('-ss', '--start', type=float)
+    ffmpeg.add_argument('-t', '--duration', type=float)
+    ffmpeg.add_argument('--size')
     args = parser.parse_args()
     if args.command == 'info': result = info()
     elif args.command == 'extract': result = extract(args.file)
-    elif args.command == 'validate': result = validate(args.file)
+    elif args.command == 'validate':
+        path = MediaScope.current().input(args.file) if args.file.suffix.lower() == '.mp4' else args.file
+        result = validate(path)
     elif args.command == 'render-pdf': result = render_pdf(args.file, args.output, args.pages, args.scale)
-    elif args.command == 'slideshow': result = slideshow(args.manifest.resolve(), args.output)
-    else:
-        flags = args.args[1:] if args.args[:1] == ['--'] else args.args
-        raise SystemExit(subprocess.run([str(ffmpeg_binary()), *flags],
-                         **({'creationflags': 0x08000000} if sys.platform == 'win32' else {})).returncode)
+    elif args.command == 'slideshow': result = slideshow(args.manifest, args.output, MediaScope.current())
+    else: result = convert_media(args, MediaScope.current())
     print(json.dumps(result, ensure_ascii=False, default=str))
 
 

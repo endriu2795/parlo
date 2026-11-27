@@ -275,9 +275,11 @@ fn request(
 }
 
 pub fn test_endpoint(endpoint: crate::custom_endpoint::Endpoint, key: &str) -> Result<()> {
+    let (_, loopback) = endpoint.request_target("audio/transcriptions")?;
     let settings = Settings { stt_provider: "custom".into(), custom_stt: endpoint, ..Settings::default() };
-    let client = reqwest::blocking::Client::builder()
-        .redirect(reqwest::redirect::Policy::none()).timeout(Duration::from_secs(30))
+    let builder = reqwest::blocking::Client::builder()
+        .redirect(reqwest::redirect::Policy::none()).timeout(Duration::from_secs(30));
+    let client = if loopback { builder.no_proxy() } else { builder }
         .build().map_err(|_| "Client HTTP non disponibile.")?;
     let audio = wav_bytes(&vec![0.0; RATE])?;
     let result = request(&client, key, &settings, &audio, true).map_err(|error| error.message)?;
@@ -564,6 +566,7 @@ pub fn transcribe(
     directory: &Path,
 ) -> Result<Vec<Segment>> {
     let custom = settings.stt_provider == "custom";
+    let loopback = custom && settings.custom_stt.request_target("audio/transcriptions")?.1;
     let key = if custom { crate::custom_endpoint::key("stt", &settings.custom_stt)? } else { api_key()? };
     let mut tracks: Vec<(String, Wav)> = ["microphone.wav", "system.wav"]
         .iter()
@@ -585,11 +588,12 @@ pub fn transcribe(
     if length == 0 {
         return Ok(vec![]);
     }
-    let client = reqwest::blocking::Client::builder()
+    let builder = reqwest::blocking::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .retry(reqwest::retry::never())
         .connect_timeout(Duration::from_secs(20))
-        .timeout(Duration::from_secs(300))
+        .timeout(Duration::from_secs(300));
+    let client = if loopback { builder.no_proxy() } else { builder }
         .build()
         .map_err(|_| "Client Groq non disponibile.".to_string())?;
     let cache = directory.join("groq-checkpoints");

@@ -645,10 +645,10 @@ mod tests {
         let fingerprint = webhook_fingerprint("https://example.com/synthetic");
         record_channel(&conn, &id.to_string(), "slack", &fingerprint).unwrap();
         record_channel(&conn, &id.to_string(), "slack", &fingerprint).unwrap();
-        let count: usize = conn.query_row("SELECT count(*) FROM channel_publications WHERE call_id=?1 AND destination='slack' AND webhook_hash=?2", rusqlite::params![id.to_string(), fingerprint], |row| row.get(0)).unwrap();
+        let count: i64 = conn.query_row("SELECT count(*) FROM channel_publications WHERE call_id=?1 AND destination='slack' AND webhook_hash=?2", rusqlite::params![id.to_string(), fingerprint], |row| row.get(0)).unwrap();
         assert_eq!(count, 1);
         db::delete(&mut conn, &id.to_string()).unwrap();
-        let count: usize = conn.query_row("SELECT count(*) FROM channel_publications", [], |row| row.get(0)).unwrap();
+        let count: i64 = conn.query_row("SELECT count(*) FROM channel_publications", [], |row| row.get(0)).unwrap();
         assert_eq!(count, 0);
         fs::remove_file(folder.join(filename(&info, id).unwrap())).unwrap();
         fs::remove_dir(folder).unwrap();

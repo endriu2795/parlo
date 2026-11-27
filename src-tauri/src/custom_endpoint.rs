@@ -15,13 +15,32 @@ pub struct Endpoint {
 }
 
 impl Endpoint {
-    pub fn url(&self, route: &str) -> Result<String> {
+    fn base_url(&self) -> Result<reqwest::Url> {
         let url = reqwest::Url::parse(self.url.trim()).map_err(|_| "URL endpoint non valido.")?;
         if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() || !url.username().is_empty()
             || url.password().is_some() || url.query().is_some() || url.fragment().is_some() {
             return Err("Usa un URL base HTTP o HTTPS senza credenziali o parametri.".into());
         }
-        Ok(format!("{}/{route}", url.as_str().trim_end_matches('/')))
+        Ok(url)
+    }
+
+    pub(crate) fn request_target(&self, route: &str) -> Result<(String, bool)> {
+        let url = self.base_url()?;
+        let loopback = url.host_str().is_some_and(|host| {
+            host == "localhost" || host.trim_matches(['[', ']'])
+                .parse::<std::net::IpAddr>().is_ok_and(|address| address.is_loopback())
+        });
+        if url.scheme() == "http" && !loopback {
+            return Err(crate::locale::tr(
+                "Usa HTTPS per un endpoint esterno. HTTP è disponibile solo su questo computer.",
+                "Use HTTPS for an external endpoint. HTTP is available only on this computer.",
+            ).into());
+        }
+        Ok((format!("{}/{route}", url.as_str().trim_end_matches('/')), loopback))
+    }
+
+    pub fn url(&self, route: &str) -> Result<String> {
+        self.request_target(route).map(|(url, _)| url)
     }
 
     pub fn validate(&self, kind: &str) -> Result<()> {
@@ -38,7 +57,12 @@ impl Endpoint {
 
 fn credential(kind: &str, endpoint: &Endpoint) -> Result<keyring::Entry> {
     if !matches!(kind, "stt" | "tts" | "chat" | "ollama") { return Err("Tipo di endpoint sconosciuto.".into()); }
-    let base = if kind == "ollama" { crate::ollama::server_base(&endpoint.url)? } else { endpoint.url("")? };
+    let base = if kind == "ollama" {
+        crate::ollama::server_base(&endpoint.url)?
+    } else {
+        // Preserve the original key name so users can remove keys for legacy URLs.
+        format!("{}/", endpoint.base_url()?.as_str().trim_end_matches('/'))
+    };
     let account = format!("{kind}-{:x}", Sha256::digest(base.as_bytes()));
     keyring::Entry::new("Parlo.CustomEndpoint", &account).map_err(|_| "Portachiavi non disponibile.".into())
 }
@@ -82,8 +106,12 @@ pub fn custom_endpoint_key(window: tauri::WebviewWindow, kind: String, url: Stri
             Err(_) => return Err("Impossibile rimuovere la chiave.".into()),
         }
     }
-    if kind == "ollama" && crate::ollama::server_base(&endpoint.url)?.starts_with("http://") {
-        return Err("Usa HTTPS per collegarti a Ollama con una chiave.".into());
+    if kind == "ollama" {
+        if crate::ollama::server_base(&endpoint.url)?.starts_with("http://") {
+            return Err("Usa HTTPS per collegarti a Ollama con una chiave.".into());
+        }
+    } else {
+        endpoint.url("")?;
     }
     if value.len() > 4096 || value.chars().any(|c| c.is_control() || c.is_whitespace()) {
         return Err("Chiave API non valida.".into());
@@ -93,13 +121,15 @@ pub fn custom_endpoint_key(window: tauri::WebviewWindow, kind: String, url: Stri
 }
 
 fn post(endpoint: &Endpoint, route: &str, key: &str, payload: Value, limit: u64) -> Result<Vec<u8>> {
-    let client = reqwest::blocking::Client::builder()
+    let (url, loopback) = endpoint.request_target(route)?;
+    let builder = reqwest::blocking::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .connect_timeout(Duration::from_secs(15))
-        .timeout(Duration::from_secs(120))
+        .timeout(Duration::from_secs(120));
+    let client = if loopback { builder.no_proxy() } else { builder }
         .build().map_err(|_| "Client HTTP non disponibile.")?;
     let bytes = serde_json::to_vec(&payload).map_err(|_| "Richiesta endpoint non valida.")?;
-    let mut request = client.post(endpoint.url(route)?).header("Content-Type", "application/json").body(bytes);
+    let mut request = client.post(url).header("Content-Type", "application/json").body(bytes);
     if !key.is_empty() { request = request.bearer_auth(key); }
     let response = request.send().map_err(|_| "L’endpoint non ha risposto.")?;
     if !response.status().is_success() { return Err(format!("L’endpoint ha risposto HTTP {}.", response.status().as_u16())); }
@@ -254,8 +284,10 @@ async fn streaming_completion(
     cancelled: &AtomicBool,
     mut on_delta: impl FnMut(&str),
 ) -> Result<ChatReply> {
-    let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
-        .connect_timeout(Duration::from_secs(15)).timeout(Duration::from_secs(120))
+    let (url, loopback) = endpoint.request_target("chat/completions")?;
+    let builder = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(Duration::from_secs(15)).timeout(Duration::from_secs(120));
+    let client = if loopback { builder.no_proxy() } else { builder }
         .build().map_err(|_| "Client HTTP non disponibile.")?;
     let mut payload = json!({"model":endpoint.model,"messages":messages,"stream":true});
     if !tools.is_empty() {
@@ -265,7 +297,7 @@ async fn streaming_completion(
     let payload = serde_json::to_vec(&payload)
         .map_err(|_| "Richiesta endpoint non valida.")?;
     if payload.len() > 500_000 { return Err("La conversazione supera il limite dell’endpoint.".into()); }
-    let mut request = client.post(endpoint.url("chat/completions")?)
+    let mut request = client.post(url)
         .header("Content-Type", "application/json").body(payload);
     if !key.is_empty() { request = request.bearer_auth(key); }
     let mut response = cancellable(cancelled, request.send()).await?;
@@ -552,6 +584,23 @@ mod tests {
             stream.write_all(response).unwrap();
         });
         (Endpoint { url: format!("http://{address}/v1"), model: "test-model".into(), voice: "test-voice".into(), ..Default::default() }, task)
+    }
+
+    #[test]
+    fn custom_endpoints_require_https_outside_loopback() {
+        let mut endpoint = Endpoint { model: "test-model".into(), voice: "test-voice".into(), ..Endpoint::default() };
+        for base in ["http://localhost:8000/v1", "http://127.0.0.1:8000/v1", "http://[::1]:8000/v1"] {
+            endpoint.url = base.into();
+            assert_eq!(endpoint.request_target("chat/completions").unwrap(), (format!("{base}/chat/completions"), true));
+        }
+        for base in ["http://example.test/v1", "http://192.168.1.2/v1", "http://localhost.example.test/v1"] {
+            endpoint.url = base.into();
+            for kind in ["stt", "tts", "chat"] {
+                assert!(endpoint.validate(kind).unwrap_err().contains("HTTPS"));
+            }
+        }
+        endpoint.url = "https://example.test/v1/".into();
+        assert_eq!(endpoint.request_target("audio/speech").unwrap(), ("https://example.test/v1/audio/speech".into(), false));
     }
 
     #[test]
