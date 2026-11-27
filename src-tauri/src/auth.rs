@@ -54,6 +54,9 @@ pub fn valid_login_url(url: &str) -> bool {
 }
 pub fn open_login(url: &str) -> Result<(), String> {
     if !valid_login_url(url) { return Err("URL di accesso Claude non valido.".into()); }
+    open_in_browser(url)
+}
+pub(crate) fn open_in_browser(url: &str) -> Result<(), String> {
     #[cfg(windows)]
     {
         use windows::{core::{w, PCWSTR}, Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL}};

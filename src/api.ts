@@ -64,9 +64,11 @@ export const api = {
   start: () => invoke<void>("start_recording"),
   importMedia: () => invoke<string | null>("import_media"),
   telegramStatus: () => invoke<{
-    username: string | null; pairing_code: string | null; connected: boolean; pending: number; error: string | null;
+    username: string | null; pairing_code: string | null; pairing_expired: boolean;
+    connected: boolean; pending: number; error: string | null; retry_after: number;
   }>("telegram_status"),
   telegramConnect: (token: string) => invoke<void>("telegram_connect", { token }),
+  telegramRenewPairing: () => invoke<void>("telegram_renew_pairing"),
   telegramOpenChat: (botFather = false) => invoke<void>("telegram_open_chat", { botFather }),
   telegramDisconnect: () => invoke<void>("telegram_disconnect"),
   stop: () => invoke<void>("stop_recording"),

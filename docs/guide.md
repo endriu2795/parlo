@@ -41,7 +41,7 @@ Pick your engine under **Settings → Recording → Where to process audio**:
 Send voice notes, audio, or video files (up to 20 MB) from your phone and have PARLO transcribe them automatically:
 
 1. In **Settings → Telegram**, open `@BotFather`, run `/newbot`, and paste the token into PARLO.
-2. Click **Continue**, open your new bot in Telegram, and press **Start**.
+2. Click **Continue** and **Copy command**. Open the bot’s private chat in Telegram, press **Start** if prompted, then paste and send the command. If the code expires, choose **Generate a new code** in PARLO.
 3. Once connected, anything you send to the bot lands in your PARLO archive. If PARLO is closed, pending messages are picked up on next launch (within Telegram's 24-hour queue window).
 
 ---

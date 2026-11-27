@@ -41,7 +41,7 @@ Scegli il motore in **Impostazioni → Registrazione → Dove elaborare l’audi
 Invia vocali, audio o video (fino a 20 MB) dal telefono per trovarli trascritti in PARLO:
 
 1. In **Impostazioni → Telegram**, apri `@BotFather`, invia `/newbot` e incolla il token in PARLO.
-2. Premi **Continua**, apri il bot in Telegram e tocca **Avvia**.
+2. Premi **Continua** e **Copia comando**. Apri la chat privata del bot in Telegram, tocca **Avvia** se compare, poi incolla e invia il comando. Se il codice scade, premi **Genera un nuovo codice** in PARLO.
 3. Da quel momento tutto ciò che invii al bot finisce nell’archivio di PARLO. Se l’app è chiusa, i messaggi in coda vengono recuperati alla riapertura (entro il limite di 24 ore di Telegram).
 
 ---

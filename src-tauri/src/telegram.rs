@@ -15,7 +15,8 @@ use std::{
 use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 
 const FILE_LIMIT: u64 = 20 * 1024 * 1024;
-const PAIRING_REQUEST_TIMEOUT: Duration = Duration::from_secs(8);
+// A newly created bot can take over 30 seconds to return an auth/rate-limit reply.
+const PAIRING_REQUEST_TIMEOUT: Duration = Duration::from_secs(45);
 const API_REQUEST_TIMEOUT: Duration = Duration::from_secs(35);
 const INVALID_MEDIA: &str = "Invia un messaggio vocale, un file audio o un video.";
 const LINK_CHANGED: &str = "Il collegamento Telegram è cambiato.";
@@ -32,6 +33,19 @@ enum Destination {
     Linked { chat: i64 },
 }
 
+impl Destination {
+    fn new_pairing() -> Self {
+        Self::Pairing {
+            code: uuid::Uuid::new_v4().simple().to_string()[..12].to_uppercase(),
+            expires: Instant::now() + Duration::from_secs(600),
+        }
+    }
+
+    fn pairing_expired(&self) -> bool {
+        matches!(self, Self::Pairing { expires, .. } if Instant::now() >= *expires)
+    }
+}
+
 struct Session {
     bot: Bot,
     destination: Destination,
@@ -42,6 +56,7 @@ pub struct Telegram {
     session: Mutex<Option<Arc<Session>>>,
     wake: Condvar,
     error: Mutex<Option<String>>,
+    retry_until: Mutex<Option<Instant>>,
     // Serialize pairing, disconnect and explicit outbound sends.
     edit: Mutex<()>,
 }
@@ -50,9 +65,11 @@ pub struct Telegram {
 pub struct TelegramStatus {
     username: Option<String>,
     pairing_code: Option<String>,
+    pairing_expired: bool,
     connected: bool,
     pending: i64,
     error: Option<String>,
+    retry_after: u64,
 }
 
 fn client(timeout: Duration) -> Result<Client> {
@@ -81,10 +98,11 @@ fn valid_token(token: &str) -> bool {
         })
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 enum ApiError {
     Unavailable,
     Timeout,
+    RateLimited(u64),
     Rejected(u16),
 }
 
@@ -110,17 +128,17 @@ impl From<ApiError> for String {
                 "Il bot è già in uso. Usa un bot dedicato a PARLO.",
                 "The bot is already in use. Use a dedicated bot for PARLO.",
             ),
-            ApiError::Rejected(429) => tr(
-                "Telegram ha limitato le richieste. Riprovo tra poco.",
-                "Telegram rate-limited the requests. Retrying shortly.",
-            ),
+            ApiError::RateLimited(seconds) => return tr(
+                "Telegram ha limitato temporaneamente le richieste. Attendi {0} secondi prima di riprovare.",
+                "Telegram temporarily limited requests. Wait {0} seconds before trying again.",
+            ).replace("{0}", &seconds.to_string()),
             ApiError::Rejected(_) => tr(
                 "Telegram ha rifiutato la richiesta.",
                 "Telegram rejected the request.",
             ),
             ApiError::Timeout => tr(
-                "Telegram non ha risposto in tempo. Verifica la connessione e riprova.",
-                "Telegram took too long to respond. Check your connection and try again.",
+                "Telegram non ha risposto in tempo. Il servizio può essere temporaneamente occupato: attendi almeno un minuto prima di riprovare.",
+                "Telegram did not respond in time. The service may be temporarily busy: wait at least a minute before trying again.",
             ),
             ApiError::Unavailable => {
                 tr("Telegram non è raggiungibile.", "Telegram is unreachable.")
@@ -136,11 +154,22 @@ fn endpoint(token: &str, method: &str) -> String {
 
 fn api_reply(request: reqwest::blocking::RequestBuilder) -> std::result::Result<Value, ApiError> {
     let response = request.send()?;
-    if !response.status().is_success() {
-        return Err(ApiError::Rejected(response.status().as_u16()));
+    let status = response.status();
+    // Telegram includes retry_after in the JSON body of HTTP 429 responses.
+    // Other HTTP failures must retain their status even if the body is not JSON.
+    if !status.is_success() && status.as_u16() != 429 {
+        return Err(ApiError::Rejected(status.as_u16()));
     }
-    let data: Value = serde_json::from_reader(response.take(2 * 1024 * 1024))
-        .map_err(|_| ApiError::Unavailable)?;
+    let data: Value = match serde_json::from_reader(response.take(2 * 1024 * 1024)) {
+        Ok(data) => data,
+        Err(_) if status.as_u16() == 429 => return Err(ApiError::RateLimited(60)),
+        Err(_) => return Err(ApiError::Unavailable),
+    };
+    if status.as_u16() == 429 || data["error_code"].as_u64() == Some(429) {
+        return Err(ApiError::RateLimited(
+            data["parameters"]["retry_after"].as_u64().filter(|seconds| *seconds > 0).unwrap_or(60),
+        ));
+    }
     if data["ok"].as_bool() != Some(true) {
         return Err(ApiError::Rejected(
             data["error_code"].as_u64().unwrap_or(400) as u16,
@@ -149,18 +178,46 @@ fn api_reply(request: reqwest::blocking::RequestBuilder) -> std::result::Result<
     Ok(data["result"].clone())
 }
 
+fn retry_after(runtime: &Telegram) -> u64 {
+    runtime.retry_until.guard().and_then(|until| until.checked_duration_since(Instant::now()))
+        .map(|remaining| remaining.as_secs() + u64::from(remaining.subsec_nanos() > 0))
+        .unwrap_or(0)
+}
+
 fn request(
     client: &Client,
+    runtime: &Telegram,
     token: &str,
     method: &str,
     data: Value,
 ) -> std::result::Result<Value, ApiError> {
-    api_reply(
-        client
-            .post(endpoint(token, method))
-            .header("Content-Type", "application/json")
-            .body(data.to_string()),
-    )
+    throttled_reply(runtime, method, client.post(endpoint(token, method))
+        .header("Content-Type", "application/json")
+        .body(data.to_string()))
+}
+
+fn throttled_reply(
+    runtime: &Telegram,
+    method: &str,
+    request: reqwest::blocking::RequestBuilder,
+) -> std::result::Result<Value, ApiError> {
+    let remaining = retry_after(runtime);
+    if remaining > 0 {
+        return Err(ApiError::RateLimited(remaining));
+    }
+    let result = api_reply(request);
+    let cooldown = match &result {
+        Err(ApiError::RateLimited(seconds)) => Some(*seconds),
+        // A timed-out bot login can still be running at Telegram. Don't pile up logins.
+        Err(ApiError::Timeout) if method == "getMe" || method == "getWebhookInfo" => Some(60),
+        _ => None,
+    };
+    if let Some(seconds) = cooldown {
+        let now = Instant::now();
+        *runtime.retry_until.guard() = now.checked_add(Duration::from_secs(seconds))
+            .or_else(|| now.checked_add(Duration::from_secs(60)));
+    }
+    result
 }
 
 fn reply(client: &Client, session: &Session, chat: i64, text: &str) {
@@ -194,13 +251,18 @@ fn status(runtime: &Telegram, db: &Connection) -> Result<TelegramStatus> {
     let mut output = TelegramStatus {
         username: session.as_ref().map(|s| s.bot.username.clone()),
         pairing_code: None,
+        pairing_expired: false,
         connected: false,
         pending: 0,
         error: runtime.error.guard().clone(),
+        retry_after: retry_after(runtime),
     };
     if let Some(session) = session {
         match &session.destination {
-            Destination::Pairing { code, .. } => output.pairing_code = Some(code.clone()),
+            Destination::Pairing { code, .. } if !session.destination.pairing_expired() => {
+                output.pairing_code = Some(code.clone());
+            }
+            Destination::Pairing { .. } => output.pairing_expired = true,
             Destination::Linked { chat } => {
                 output.connected = true;
                 output.pending = db.query_row(
@@ -220,7 +282,7 @@ pub fn telegram_status(window: WebviewWindow, state: State<'_, Shared>) -> Resul
 }
 
 #[tauri::command]
-pub fn telegram_open_chat(window: WebviewWindow, bot_father: bool) -> Result<()> {
+pub async fn telegram_open_chat(window: WebviewWindow, bot_father: bool) -> Result<()> {
     main_window(&window)?;
     let url = if bot_father {
         "https://t.me/BotFather".to_owned()
@@ -233,21 +295,15 @@ pub fn telegram_open_chat(window: WebviewWindow, bot_father: bool) -> Result<()>
         if username.is_empty() || !username.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_') {
             return Err(tr("Nome del bot non valido.", "Invalid bot username.").into());
         }
-        match &session.destination {
-            Destination::Pairing { code, expires } if Instant::now() < *expires => {
-                format!("https://t.me/{username}?start={code}")
-            }
-            Destination::Pairing { .. } => {
-                return Err(tr("Codice scaduto. Ricollega il bot.", "Code expired. Reconnect the bot.").into());
-            }
-            Destination::Linked { .. } => format!("https://t.me/{username}"),
-        }
+        format!("https://t.me/{username}")
     };
-    let program = if cfg!(windows) { "explorer.exe" } else if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
-    std::process::Command::new(program).arg(url).spawn().map_err(|_| {
-        tr("Impossibile aprire Telegram.", "Could not open Telegram.").to_owned()
-    })?;
-    Ok(())
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::auth::open_in_browser(&url).map_err(|_| {
+            tr("Impossibile aprire Telegram.", "Could not open Telegram.").to_owned()
+        })
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 fn pairing_session(
@@ -268,14 +324,30 @@ fn pairing_session(
             "This bot already uses a webhook. Create a dedicated bot for PARLO.",
         ).into());
     }
-    let code = uuid::Uuid::new_v4().simple().to_string()[..12].to_uppercase();
     Ok(Session {
         bot: Bot { id, username: username.into(), token: token.into() },
-        destination: Destination::Pairing {
-            code,
-            expires: Instant::now() + Duration::from_secs(600),
-        },
+        destination: Destination::new_pairing(),
     })
+}
+
+fn renew_pairing(runtime: &Telegram) -> Result<()> {
+    let _edit = runtime.edit.guard();
+    let mut current = runtime.session.guard();
+    let session = current.as_ref().filter(|session| session.destination.pairing_expired())
+        .ok_or_else(|| tr("Non c’è un codice scaduto da sostituire.", "There is no expired code to replace."))?;
+    *current = Some(Arc::new(Session {
+        bot: session.bot.clone(),
+        destination: Destination::new_pairing(),
+    }));
+    *runtime.error.guard() = None;
+    runtime.wake.notify_one();
+    Ok(())
+}
+
+#[tauri::command]
+pub fn telegram_renew_pairing(window: WebviewWindow) -> Result<()> {
+    main_window(&window)?;
+    renew_pairing(&window.app_handle().state::<Telegram>())
 }
 
 #[tauri::command]
@@ -296,7 +368,7 @@ pub async fn telegram_connect(window: WebviewWindow, token: String) -> Result<()
             .into());
         }
         let client = client(PAIRING_REQUEST_TIMEOUT)?;
-        let session = pairing_session(token, |method| request(&client, token, method, json!({})))?;
+        let session = pairing_session(token, |method| request(&client, &runtime, token, method, json!({})))?;
         *runtime.session.guard() = Some(Arc::new(session));
         *runtime.error.guard() = None;
         runtime.wake.notify_one();
@@ -363,7 +435,7 @@ fn restore(runtime: &Telegram, db: &Connection) -> Result<()> {
 
 fn link(runtime: &Telegram, state: &Shared, session: &Arc<Session>, chat: i64) -> Result<()> {
     let _edit = runtime.edit.guard();
-    if !is_current(runtime, session) {
+    if !is_current(runtime, session) || session.destination.pairing_expired() {
         return Err(LINK_CHANGED.into());
     }
     let bot = &session.bot;
@@ -484,12 +556,14 @@ fn receive(
         return Ok(());
     }
     match &session.destination {
-        Destination::Pairing { code, expires } => {
-            if Instant::now() < *expires
-                && message["text"]
-                    .as_str()
-                    .is_some_and(|text| matches_pairing_code(text, code))
-            {
+        Destination::Pairing { code, .. } => {
+            let Some(text) = message["text"].as_str() else {
+                return Ok(());
+            };
+            if session.destination.pairing_expired() {
+                return Ok(());
+            }
+            if matches_pairing_code(text, code) {
                 link(runtime, state, session, chat)?;
                 reply(
                     client,
@@ -500,6 +574,11 @@ fn receive(
                         "PARLO connected. Send a voice message, audio file, or video.",
                     ),
                 );
+            } else if text.split_whitespace().next() == Some("/start") && is_current(runtime, session) {
+                reply(client, session, chat, tr(
+                    "Per confermare, copia da «Collega con il codice» in PARLO il comando completo e invialo in questa chat.",
+                    "To confirm, copy the full command from “Connect with a code” in PARLO and send it in this chat.",
+                ));
             }
         }
         Destination::Linked { chat: allowed } if *allowed == chat => {
@@ -564,7 +643,7 @@ struct Job {
     title: String,
 }
 
-fn download(client: &Client, token: &str, job: &Job, dir: &Path) -> Result<Option<PathBuf>> {
+fn download(client: &Client, runtime: &Telegram, token: &str, job: &Job, dir: &Path) -> Result<Option<PathBuf>> {
     if uuid::Uuid::parse_str(&job.id).is_err() || !import_media::supported_extension(&job.extension)
     {
         return Ok(None);
@@ -573,7 +652,7 @@ fn download(client: &Client, token: &str, job: &Job, dir: &Path) -> Result<Optio
     if fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_file()) {
         return Ok(Some(path));
     }
-    let metadata = match request(client, token, "getFile", json!({"file_id":job.file})) {
+    let metadata = match request(client, runtime, token, "getFile", json!({"file_id":job.file})) {
         Ok(metadata) => metadata,
         Err(ApiError::Rejected(400 | 413)) => return Ok(None),
         Err(error) => return Err(error.into()),
@@ -664,7 +743,7 @@ fn process(
         return Ok(());
     }
     let dir = state.data_dir.join("telegram-incoming");
-    let Some(path) = download(client, &session.bot.token, &job, &dir)? else {
+    let Some(path) = download(client, runtime, &session.bot.token, &job, &dir)? else {
         complete(&state.db.guard(), &job.id)?;
         if is_current(runtime, session) {
             reply(client, session, chat, tr("File Telegram non disponibile o troppo grande. Importalo direttamente in PARLO.", "The Telegram file is unavailable or too large. Import it directly in PARLO."));
@@ -729,29 +808,17 @@ pub fn start(app: AppHandle, state: Shared) {
         loop {
             let session = runtime
                 .wake
-                .wait_while(runtime.session.guard(), |session| session.is_none())
+                .wait_while(runtime.session.guard(), |current| {
+                    current.as_ref().is_none_or(|session| session.destination.pairing_expired())
+                })
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .as_ref()
-                .expect("Telegram worker waits for a session")
+                .expect("Telegram worker waits for a usable session")
                 .clone();
-            if matches!(session.destination, Destination::Pairing { expires, .. } if Instant::now() >= expires)
-            {
-                let _edit = runtime.edit.guard();
-                if is_current(&runtime, &session) {
-                    *runtime.session.guard() = None;
-                    *runtime.error.guard() = Some(
-                        tr(
-                            "Codice scaduto. Ricollega il bot.",
-                            "Code expired. Reconnect the bot.",
-                        )
-                        .into(),
-                    );
-                }
-                continue;
-            }
             let cycle = || -> Result<()> {
                 let updates = request(
                     &client,
+                    &runtime,
                     &session.bot.token,
                     "getUpdates",
                     json!({"limit":25,"timeout":8,"allowed_updates":["message"]}),
@@ -769,6 +836,7 @@ pub fn start(app: AppHandle, state: Shared) {
                 if let Some(offset) = offset {
                     request(
                         &client,
+                        &runtime,
                         &session.bot.token,
                         "getUpdates",
                         json!({"offset":offset,"limit":1,"timeout":0,"allowed_updates":["message"]}),
@@ -794,6 +862,47 @@ pub fn start(app: AppHandle, state: Shared) {
 mod tests {
     use super::*;
 
+    fn mock_api(status: &str, body: &str) -> (String, thread::JoinHandle<()>) {
+        use std::io::Write;
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let url = format!("http://{}/getMe", listener.local_addr().unwrap());
+        let response = format!("HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+        let server = thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+            let mut buffer = [0u8; 4096];
+            socket.read(&mut buffer).unwrap();
+            socket.write_all(response.as_bytes()).unwrap();
+        });
+        (url, server)
+    }
+
+    #[test]
+    fn rate_limit_preserves_wait_and_blocks_requests_until_it_expires() {
+        let runtime = Telegram::default();
+        let client = Client::builder().no_proxy().timeout(Duration::from_secs(2)).build().unwrap();
+        let (url, server) = mock_api("429 Too Many Requests", r#"{"ok":false,"error_code":429,"parameters":{"retry_after":32}}"#);
+        assert_eq!(throttled_reply(&runtime, "getMe", client.post(&url)), Err(ApiError::RateLimited(32)));
+        server.join().unwrap();
+        assert!((1..=32).contains(&retry_after(&runtime)));
+        // The listener has gone away: this must return the cooldown, not a connection error.
+        assert!(matches!(throttled_reply(&runtime, "getMe", client.post(&url)), Err(ApiError::RateLimited(1..=32))));
+        *runtime.retry_until.guard() = Some(Instant::now() - Duration::from_secs(1));
+        let (url, server) = mock_api("200 OK", r#"{"ok":true,"result":{"id":123456}}"#);
+        assert_eq!(throttled_reply(&runtime, "getMe", client.post(url)).unwrap()["id"], 123456);
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn non_json_http_errors_preserve_auth_and_rate_limit_information() {
+        let client = Client::builder().no_proxy().timeout(Duration::from_secs(2)).build().unwrap();
+        for (status, expected) in [("401 Unauthorized", ApiError::Rejected(401)), ("429 Too Many Requests", ApiError::RateLimited(60))] {
+            let (url, server) = mock_api(status, "not JSON");
+            assert_eq!(api_reply(client.post(url)), Err(expected));
+            server.join().unwrap();
+        }
+    }
+
     #[test]
     fn pairing_accepts_the_telegram_start_link_and_manual_code() {
         for text in [" ABCDEF012345 ", "/start ABCDEF012345"] {
@@ -802,6 +911,36 @@ mod tests {
         for text in ["/start", "/start WRONG", "/start ABCDEF012345 extra", "ABCDEF012345 extra"] {
             assert!(!matches_pairing_code(text, "ABCDEF012345"));
         }
+    }
+
+    #[test]
+    fn expired_pairing_renews_only_the_code_and_keeps_the_bot() {
+        let runtime = Telegram::default();
+        let db = Connection::open_in_memory().unwrap();
+        let expired_code = "ABCDEF012345";
+        let expired = Arc::new(Session {
+            bot: Bot { id: 1, username: "parlo_test_bot".into(), token: "1:synthetic".into() },
+            destination: Destination::Pairing {
+                code: expired_code.into(),
+                expires: Instant::now() - Duration::from_secs(1),
+            },
+        });
+        assert!(renew_pairing(&runtime).is_err());
+        *runtime.session.guard() = Some(expired.clone());
+        let before = status(&runtime, &db).unwrap();
+        assert!(before.pairing_expired);
+        assert!(before.pairing_code.is_none());
+
+        renew_pairing(&runtime).unwrap();
+        let after = status(&runtime, &db).unwrap();
+        let new_code = after.pairing_code.unwrap();
+        assert!(!after.pairing_expired);
+        assert_eq!(after.username, before.username);
+        assert!(!matches_pairing_code(expired_code, &new_code));
+        assert!(matches_pairing_code(&format!("/start {new_code}"), &new_code));
+        assert!(!is_current(&runtime, &expired));
+        assert_eq!(runtime.session.guard().as_ref().unwrap().bot.token, expired.bot.token);
+        assert!(renew_pairing(&runtime).is_err());
     }
 
     #[test]
@@ -814,7 +953,9 @@ mod tests {
             .build()
             .unwrap();
         let url = format!("http://{}/getMe", server.local_addr().unwrap());
-        assert!(matches!(api_reply(client.post(url)), Err(ApiError::Timeout)));
+        let runtime = Telegram::default();
+        assert_eq!(throttled_reply(&runtime, "getMe", client.post(url)), Err(ApiError::Timeout));
+        assert!((1..=60).contains(&retry_after(&runtime)));
     }
 
     #[test]

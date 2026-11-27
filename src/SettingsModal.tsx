@@ -1,5 +1,5 @@
 import { t } from "./i18n";
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Archive, BookOpen, Keyboard, Mic, Send, Share2, SlidersHorizontal, Sparkles, Volume2, Wrench, X } from "lucide-react";
 import { api } from "./api";
 import { useDialog } from "./useDialog";
@@ -58,12 +58,26 @@ export default function SettingsModal({ settings, initialTab = "general", update
   const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [formError, setFormError] = useState("");
   const [requestingModel, setRequestingModel] = useState(false);
+  const [showCloseWarning, setShowCloseWarning] = useState(false);
+  const warningTimer = useRef<number | undefined>(undefined);
   const body = useRef<HTMLDivElement>(null);
   const dialog = useDialog<HTMLElement>(onClose, ".settings-close");
   const section = sections.find(section => section.id === tab)!;
   const toSave = normalize(draft, defaultPrompt);
   const hasChanges = JSON.stringify(toSave) !== JSON.stringify(normalize(settings, defaultPrompt));
   const engineWorking = requestingModel || !!engineSetup?.running;
+
+  useEffect(() => () => window.clearTimeout(warningTimer.current), []);
+
+  const closeFromBackdrop = () => {
+    if (!hasChanges) {
+      onClose();
+      return;
+    }
+    setShowCloseWarning(true);
+    window.clearTimeout(warningTimer.current);
+    warningTimer.current = window.setTimeout(() => setShowCloseWarning(false), 4500);
+  };
 
   const showError = (message: string) => {
     setFormError(message);
@@ -128,7 +142,7 @@ export default function SettingsModal({ settings, initialTab = "general", update
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={closeFromBackdrop}>
       <section className="settings-modal" ref={dialog.ref} onKeyDown={dialog.onKeyDown} role="dialog" aria-modal="true"
         aria-labelledby="settings-title" onClick={event => event.stopPropagation()}>
         <div className="settings-layout">
@@ -166,6 +180,9 @@ export default function SettingsModal({ settings, initialTab = "general", update
               {tab === "advanced" && <AdvancedSection {...common} />}
             </div>
             <footer className="settings-footer">
+              {hasChanges && showCloseWarning && <div className="settings-toast" role="alert">
+                {t("Hai modifiche non salvate. Scegli «Salva modifiche» oppure «Annulla».")}
+              </div>}
               <span className={`settings-save-state ${hasChanges ? "dirty" : ""}`} role="status">{hasChanges ? t("Modifiche non salvate") : t("Nessuna modifica")}</span>
               <button className="secondary-button" onClick={onClose}>{t("Annulla")}</button>
               <button className="primary-button" disabled={busy || engineWorking} onClick={() => void save()}>{t("Salva modifiche")}</button>
