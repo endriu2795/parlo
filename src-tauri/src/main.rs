@@ -706,12 +706,13 @@ fn start_live(
             let Ok(dir) = temp_dir(&state, &id) else {
                 return;
             };
-            match process::inference(&app, &state, &settings, &dir, true, &cursors) {
-                Ok(value) => {
-                    let mut status = state.status.guard();
-                    if status.capture.as_ref().map(|c| c.id.as_str()) != Some(id.as_str()) {
-                        return;
-                    }
+            let result = process::preview(&app, &state, &settings, &dir, &cursors);
+            let mut status = state.status.guard();
+            if status.capture.as_ref().map(|c| c.id.as_str()) != Some(id.as_str()) {
+                return;
+            }
+            match result {
+                Ok(Some(value)) => {
                     cursors = value["cursors"].clone();
                     if !value["streamed"].as_bool().unwrap_or(false) {
                         if let Ok(segments) =
@@ -724,16 +725,23 @@ fn start_live(
                     status.live_stage = tr("Testo provvisorio · aggiornamento durante la call", "Draft transcript · updates during the call").into();
                     let _ = app.emit("status-changed", status.clone());
                 }
-                Err(e) => {
-                    let mut status = state.status.guard();
-                    if status.capture.as_ref().map(|c| c.id.as_str()) == Some(id.as_str()) {
-                        status.live_stage = if locale::ui_language() == "it" {
-                            format!("Anteprima non disponibile: {e}. Il testo sarà elaborato dopo lo stop.")
-                        } else {
-                            format!("Preview unavailable: {e}. Transcription will continue when recording stops.")
-                        };
+                Ok(None) => {
+                    let paused = tr(
+                        "Anteprima in pausa · trascrizione finale in corso",
+                        "Preview paused · final transcription in progress",
+                    );
+                    if status.live_stage != paused {
+                        status.live_stage = paused.into();
                         let _ = app.emit("status-changed", status.clone());
                     }
+                }
+                Err(e) => {
+                    status.live_stage = if locale::ui_language() == "it" {
+                        format!("Anteprima non disponibile: {e}. Il testo sarà elaborato dopo lo stop.")
+                    } else {
+                        format!("Preview unavailable: {e}. Transcription will continue when recording stops.")
+                    };
+                    let _ = app.emit("status-changed", status.clone());
                     return;
                 }
             }
@@ -1327,7 +1335,7 @@ fn main() {
             let settings=db::get_settings(&state.db.guard()).map_err(std::io::Error::other)?;
             if settings.live_transcription&&settings.whisper_ready()&&settings.preview_ready()&&python_runtime::prepared_installed(&engine_dir()).is_some(){
                 let handle=app.handle().clone();let warm_state=state.clone();let warm_settings=settings.clone();
-                std::thread::spawn(move||{if let Err(e)=process::inference(&handle,&warm_state,&warm_settings,&warm_state.data_dir,true,&serde_json::json!({"warmup":true})){eprintln!("Preparazione anteprima: {e}");}});
+                std::thread::spawn(move||{if let Err(e)=process::preview(&handle,&warm_state,&warm_settings,&warm_state.data_dir,&serde_json::json!({"warmup":true})){eprintln!("Preparazione anteprima: {e}");}});
             }
             if let Err(e)=register_all_shortcuts(app.handle(),&settings){let _=app.emit("app-error",e);}
             let drawing = WebviewWindowBuilder::new(app,"drawing",WebviewUrl::App("overlay.html?drawing=1".into()))

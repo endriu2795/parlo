@@ -246,20 +246,31 @@ impl Engine {
         })
     }
 }
-pub fn inference(
+pub fn preview(
+    app: &AppHandle,
+    state: &Arc<AppState>,
+    settings: &Settings,
+    directory: &Path,
+    cursors: &serde_json::Value,
+) -> Result<Option<serde_json::Value>> {
+    let mut engine = state.live_engine.guard();
+    // Hold the preview engine lock across the queue check and inference.
+    // A newly active final job waits for this window before using the GPU.
+    if settings.live_compute_mode == "auto" && state.processing.guard().blocks_gpu_preview() {
+        return Ok(None);
+    }
+    inference(app, state, settings, directory, true, cursors, &mut engine).map(Some)
+}
+
+fn inference(
     app: &AppHandle,
     state: &Arc<AppState>,
     settings: &Settings,
     directory: &Path,
     live: bool,
     cursors: &serde_json::Value,
+    engine: &mut Option<Engine>,
 ) -> Result<serde_json::Value> {
-    let mutex = if live {
-        &state.live_engine
-    } else {
-        &state.engine
-    };
-    let mut engine = mutex.guard();
     if engine.as_mut().is_some_and(|e| {
         e.python != settings.python_bin || e.child.exited()
     }) {
@@ -360,6 +371,15 @@ pub fn transcribe(
     settings: &Settings,
     directory: &Path,
 ) -> Result<Vec<Segment>> {
+    let pause_gpu_preview =
+        settings.live_compute_mode == "auto" && state.processing.guard().blocks_gpu_preview();
+    if pause_gpu_preview {
+        let mut preview = state.live_engine.guard();
+        state.live_process.guard().take();
+        preview.take();
+    }
+    crate::processing::ensure_active(state)?;
+    let mut engine = state.engine.guard();
     let value = inference(
         app,
         state,
@@ -367,6 +387,7 @@ pub fn transcribe(
         directory,
         false,
         &serde_json::json!({}),
+        &mut engine,
     )?;
     serde_json::from_value(value["segments"].clone()).map_err(|e| e.to_string())
 }

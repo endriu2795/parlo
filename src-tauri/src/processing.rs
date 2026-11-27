@@ -13,6 +13,7 @@ type Job = (String, Settings);
 struct Active {
     id: String,
     cancelled: bool,
+    may_use_gpu: bool,
     child: Option<Arc<EngineChild>>,
 }
 
@@ -36,13 +37,18 @@ impl Queue {
 
     fn next(&mut self) -> Option<Job> {
         let job = self.waiting.pop_front();
-        self.active = job.as_ref().map(|(id, _)| Active {
+        self.active = job.as_ref().map(|(id, settings)| Active {
             id: id.clone(),
             cancelled: false,
+            may_use_gpu: !settings.remote_stt() && settings.compute_mode == "auto",
             child: None,
         });
         self.worker_running = job.is_some();
         job
+    }
+
+    pub fn blocks_gpu_preview(&self) -> bool {
+        self.active.as_ref().is_some_and(|job| job.may_use_gpu)
     }
 
     fn update_status(&self, status: &mut Status) {
@@ -120,8 +126,13 @@ fn run(app: &AppHandle, state: &Shared) {
         let job = {
             let _operation = state.operation.guard();
             let mut queue = state.processing.guard();
+            let had_gpu_job = queue.blocks_gpu_preview();
             let job = queue.next();
-            if job.is_none() { state.engine.guard().take(); }
+            // Keep a warm worker across GPU jobs, but release it before
+            // unlocking the queue and allowing the GPU preview to resume.
+            if job.is_none() || (had_gpu_job && !queue.blocks_gpu_preview()) {
+                state.engine.guard().take();
+            }
             let mut status = state.status.guard();
             queue.update_status(&mut status);
             status.stage = job.as_ref().map_or("", |(_, settings)| {
@@ -222,6 +233,36 @@ pub fn cancel_processing(app: AppHandle, state: State<Shared>, id: String) -> Re
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gpu_preview_pauses_for_active_local_automatic_jobs() {
+        let mut queue = Queue::default();
+        queue.push(("first".into(), Settings::default()));
+        queue.push(("second".into(), Settings::default()));
+        let cpu = Settings {
+            compute_mode: "cpu".into(),
+            ..Settings::default()
+        };
+        let remote = Settings {
+            stt_provider: "groq".into(),
+            ..Settings::default()
+        };
+        queue.push(("cpu".into(), cpu));
+        queue.push(("remote".into(), remote));
+
+        assert!(!queue.blocks_gpu_preview());
+        for (expected, paused) in [
+            ("first", true),
+            ("second", true),
+            ("cpu", false),
+            ("remote", false),
+        ] {
+            assert_eq!(queue.next().unwrap().0, expected);
+            assert_eq!(queue.blocks_gpu_preview(), paused);
+        }
+        assert!(queue.next().is_none());
+        assert!(!queue.blocks_gpu_preview());
+    }
 
     #[test]
     fn cancelling_before_pickup_preserves_the_worker_and_the_next_job() {
