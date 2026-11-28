@@ -61,9 +61,7 @@ fn cloud_name(name: &str) -> bool {
     tag == "cloud" || tag.ends_with("-cloud") || tag.starts_with("cloud-")
 }
 pub fn server_base(input: &str) -> Result<String> {
-    let endpoint = crate::custom_endpoint::Endpoint { url: input.into(), ..Default::default() };
-    let base = endpoint.url("")?.trim_end_matches('/').to_owned();
-    let url = reqwest::Url::parse(&base).map_err(|_| "Indirizzo Ollama non valido.")?;
+    let url = crate::custom_endpoint::parse_base_url(input)?;
     if url.path().trim_end_matches('/').ends_with("/v1") {
         return Err("Usa l’indirizzo base di Ollama senza /v1.".into());
     }
@@ -76,7 +74,7 @@ pub fn server_base(input: &str) -> Result<String> {
         };
         if !private { return Err("Usa HTTPS per un server Ollama fuori dalla rete privata.".into()); }
     }
-    Ok(base)
+    Ok(url.as_str().trim_end_matches('/').to_owned())
 }
 
 struct Server {

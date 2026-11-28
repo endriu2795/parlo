@@ -14,18 +14,18 @@ pub struct Endpoint {
     pub tools_enabled: bool,
 }
 
-impl Endpoint {
-    fn base_url(&self) -> Result<reqwest::Url> {
-        let url = reqwest::Url::parse(self.url.trim()).map_err(|_| "URL endpoint non valido.")?;
-        if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() || !url.username().is_empty()
-            || url.password().is_some() || url.query().is_some() || url.fragment().is_some() {
-            return Err("Usa un URL base HTTP o HTTPS senza credenziali o parametri.".into());
-        }
-        Ok(url)
+pub(crate) fn parse_base_url(input: &str) -> Result<reqwest::Url> {
+    let url = reqwest::Url::parse(input.trim()).map_err(|_| "URL endpoint non valido.")?;
+    if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() || !url.username().is_empty()
+        || url.password().is_some() || url.query().is_some() || url.fragment().is_some() {
+        return Err("Usa un URL base HTTP o HTTPS senza credenziali o parametri.".into());
     }
+    Ok(url)
+}
 
+impl Endpoint {
     pub(crate) fn request_target(&self, route: &str) -> Result<(String, bool)> {
-        let url = self.base_url()?;
+        let url = parse_base_url(&self.url)?;
         let loopback = url.host_str().is_some_and(|host| {
             host == "localhost" || host.trim_matches(['[', ']'])
                 .parse::<std::net::IpAddr>().is_ok_and(|address| address.is_loopback())
@@ -61,7 +61,7 @@ fn credential(kind: &str, endpoint: &Endpoint) -> Result<keyring::Entry> {
         crate::ollama::server_base(&endpoint.url)?
     } else {
         // Preserve the original key name so users can remove keys for legacy URLs.
-        format!("{}/", endpoint.base_url()?.as_str().trim_end_matches('/'))
+        format!("{}/", parse_base_url(&endpoint.url)?.as_str().trim_end_matches('/'))
     };
     let account = format!("{kind}-{:x}", Sha256::digest(base.as_bytes()));
     keyring::Entry::new("Parlo.CustomEndpoint", &account).map_err(|_| "Portachiavi non disponibile.".into())
